@@ -1,0 +1,1 @@
+// This file is deprecated. All settings and profile customizations have been unified in Account.tsx.
