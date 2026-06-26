@@ -1,0 +1,61 @@
+{
+  "helpCenter": [
+    {
+      "title": "Finding Medicines",
+      "desc": "Search the digital catalog by typing the brand or generic name. Filter results by therapeutic category and check real-time stock availability.",
+      "steps": [
+        "Navigate to the 'Find Medicines' page.",
+        "Enter the medicine name in the search bar.",
+        "Use filters to narrow down by category, stock status, or price.",
+        "View the highest market price and locate which pharmacies stock the medicine."
+      ]
+    },
+    {
+      "title": "Finding Nearby Pharmacies",
+      "desc": "Locate pharmacies near your current position. View ratings, precise distances, and actual operating hours.",
+      "steps": [
+        "Go to 'Nearby Pharmacies' from the menu.",
+        "Allow location access or search by city name.",
+        "Filter by rating (4+ stars) or open-now status.",
+        "Click on a pharmacy to see its detail page and directions."
+      ]
+    },
+    {
+      "title": "Health Savings Benefits",
+      "desc": "Access discounts, savings benefits, and manage health expenses efficiently through partnered pharmacies.",
+      "steps": [
+        "Sign up for a patient account.",
+        "Look for medicines marked with discount tags.",
+        "Present your digital MedPay ID at verified pharmacies to redeem savings."
+      ]
+    },
+    {
+      "title": "For Pharmacy Partners",
+      "desc": "Register your pharmacy via the Partner portal. Once approved, you gain access to the Staff Dashboard to configure operating hours, edit custom medicine catalog details, manage your stock levels, reply to patient chats, and handle pending orders.",
+      "steps": [
+        "Visit the 'Pharmacy Partner' link in the footer/header.",
+        "Register your pharmacy details and upload your business license.",
+        "Wait for system administrator verification and approval.",
+        "Access the staff dashboard directly upon approval."
+      ]
+    }
+  ],
+  "patientRights": [
+    {
+      "title": "Right to Information",
+      "desc": "Patients have the right to accurate, up-to-date pricing and availability of medicines without hidden fees or discrimination."
+    },
+    {
+      "title": "Right to Privacy & Confidentiality",
+      "desc": "Your medical search queries, prescription details, and chat conversations with pharmacies are fully encrypted and private."
+    },
+    {
+      "title": "Right to Choice",
+      "desc": "You have the freedom to choose any licensed pharmacy on the platform based on location, price, rating, or operating hours."
+    },
+    {
+      "title": "Right to File Complaints",
+      "desc": "If you experience poor service, incorrect pricing, or counterfeit medicines, you have the right to report it directly to the system administrator."
+    }
+  ]
+}
