@@ -1,0 +1,51 @@
+@import "tailwindcss";
+
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+  --primary: #24D2A6;
+  --primary-hover: #1eb08b;
+  --backgroundImage-gradient-cta: linear-gradient(135deg, #24D2A6 0%, #1eb08b 100%);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-primary: var(--primary);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+  --font-poppins: "Poppins", sans-serif;
+}
+
+/* ── Global Scroll Fix ─────────────────────────────────────────────────────── */
+html {
+  scroll-behavior: smooth;
+  /* Never let the root be locked — pages must control their own overflow */
+  overflow-y: auto !important;
+  overflow-x: hidden;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+  /* Natural document scroll — no height or overflow lock */
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* ── Custom Scrollbar ──────────────────────────────────────────────────────── */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #d1d5db;
+  border-radius: 999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #24D2A6;
+}
