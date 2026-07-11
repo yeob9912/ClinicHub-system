@@ -53,6 +53,7 @@ interface InventoryItem {
   stock_quantity: number;
   price: number;
   is_available: boolean;
+  in_stock?: boolean;
 }
 
 interface Pharmacy {
