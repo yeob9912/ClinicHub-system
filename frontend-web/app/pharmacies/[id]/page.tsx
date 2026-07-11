@@ -68,6 +68,7 @@ interface Pharmacy {
   status: string;
   latitude?: number;
   longitude?: number;
+  announcements?: any[];
 }
 
 interface ChatMessage {
