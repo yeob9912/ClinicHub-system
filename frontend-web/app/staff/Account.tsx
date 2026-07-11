@@ -6,6 +6,7 @@ import {
   Settings, User, Lock, Store, Bell,
   ShieldCheck, Save, Smartphone, Image, FileText,
   LogOut, Mail, Trash2, Upload, UserCircle2, RotateCcw,
+  Globe, Palette
 } from "lucide-react";
 import { useUser } from "@/context/UserContext";
 import { apiFetch } from "./utils";
