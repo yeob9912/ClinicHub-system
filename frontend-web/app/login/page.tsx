@@ -9,7 +9,7 @@ import { formatApiError } from "@/lib/api";
 import GoogleSignInButton, { AuthDivider } from "@/components/GoogleSignInButton";
 import { API_BASE_URL } from "@/lib/api";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Mail, CheckCircle2, ArrowRight, Loader2 } from "lucide-react";
+import { X, Mail, CheckCircle2, ArrowRight, Loader2, Eye, EyeOff } from "lucide-react";
 
 function LoginContent() {
   const router = useRouter();
@@ -19,6 +19,7 @@ function LoginContent() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   // Forgot Password modal states
   const [showForgot, setShowForgot] = useState(false);
@@ -157,14 +158,23 @@ function LoginContent() {
                 Forgot Password?
               </button>
             </div>
-            <input
-              type="password"
-              required
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="••••••••"
-              className="w-full p-3.5 bg-slate-50 border border-gray-200 rounded-lg outline-none focus:border-blue-500 text-gray-900 placeholder-gray-400"
-            />
+            <div className="relative">
+              <input
+                type={showPassword ? "text" : "password"}
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••"
+                className="w-full p-3.5 pr-11 bg-slate-50 border border-gray-200 rounded-lg outline-none focus:border-blue-500 text-gray-900 placeholder-gray-400"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
           </div>
 
           <button
