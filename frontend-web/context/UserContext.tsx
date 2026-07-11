@@ -21,6 +21,8 @@ export interface Notification {
   timestamp: Date;
   isRead: boolean;
   link?: string;
+  data?: any;
+  _id?: string;
 }
 
 export interface User {
