@@ -105,6 +105,8 @@ function PharmacyManagementPage() {
   const [stats, setStats] = useState<any>(null);
   const [queryMessage, setQueryMessage] = useState("");
   const [showQueryField, setShowQueryField] = useState(false);
+  const [ackMessageInput, setAckMessageInput] = useState("");
+  const [showAckField, setShowAckField] = useState(false);
 
   useEffect(() => {
     apiFetch("/admin/stats")
