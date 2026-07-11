@@ -12,18 +12,19 @@ Patients often do not know which clinic or hospital near them can treat their co
 
 ## 🛠 Tech Stack
 
-| Layer | Technologies |
-|-------|-------------|
-| **Frontend** | Next.js, React, TypeScript, Tailwind CSS |
-| **Backend** | Node.js, Express.js, TypeScript |
-| **Database** | MongoDB |
-| **Hosting** | Vercel (frontend) · Render (backend) · MongoDB Atlas (database) |
+| Layer        | Technologies                                                    |
+| ------------ | --------------------------------------------------------------- |
+| **Frontend** | Next.js, React, TypeScript, Tailwind CSS                        |
+| **Backend**  | Node.js, Express.js, TypeScript                                 |
+| **Database** | MongoDB                                                         |
+| **Hosting**  | Vercel (frontend) · Render (backend) · MongoDB Atlas (database) |
 
 ---
 
 ## 👥 Actors & What They Can Do
 
 ### 👤 Patient
+
 - Search for clinics and hospitals by name or location
 - Check real-time medicine availability and stock
 - Book appointments at clinics and hospitals
@@ -35,6 +36,7 @@ Patients often do not know which clinic or hospital near them can treat their co
 - Manage account, preferences, and notifications
 
 ### 🏥 Clinic / Hospital Staff
+
 - Manage medicine inventory — add, update, and remove stock
 - Receive, confirm, and process patient bookings and orders
 - Chat with patients in real time
@@ -42,6 +44,7 @@ Patients often do not know which clinic or hospital near them can treat their co
 - View staff notifications and activity dashboard
 
 ### 🛡️ Admin
+
 - Approve, suspend, and manage all clinics and hospitals
 - Manage all registered users
 - Maintain the global medicine catalogue
@@ -159,34 +162,30 @@ ClinicHub-System/
 
 ## 🔗 API Endpoints
 
-**Base URL:** `https://clinichub-system.onrender.com`  
-**Interactive Docs:** https://clinichub-system.onrender.com/api-docs
-
-| Method | Route | Access |
-|--------|-------|--------|
-| POST | `/api/v1/auth/register` | 🌐 Everyone |
-| POST | `/api/v1/auth/login` | 🌐 Everyone |
-| POST | `/api/v1/auth/forgot-password` | 🌐 Everyone |
-| GET | `/api/v1/pharmacies` | 🌐 Everyone |
-| GET | `/api/v1/pharmacies/:id` | 🌐 Everyone |
-| GET | `/api/v1/medicines` | 🌐 Everyone |
-| GET | `/api/v1/pharmacies/:id/inventory` | 🌐 Everyone |
-| GET | `/api/v1/users/me` | 🔒 Logged in |
-| PUT | `/api/v1/users/me` | 🔒 Logged in |
-| POST | `/api/v1/orders` | 🔒 Logged in |
-| GET | `/api/v1/orders` | 🔒 Logged in |
-| GET | `/api/v1/notifications` | 🔒 Logged in |
-| POST | `/api/v1/chats` | 🔒 Logged in |
-| GET | `/api/v1/receipts` | 🔒 Logged in |
-| POST | `/api/v1/complaints` | 🔒 Logged in |
-| GET | `/api/v1/admin/*` | 👑 Admin only |
+| Method | Route                              | Access        |
+| ------ | ---------------------------------- | ------------- |
+| POST   | `/api/v1/auth/register`            | 🌐 Everyone   |
+| POST   | `/api/v1/auth/login`               | 🌐 Everyone   |
+| POST   | `/api/v1/auth/forgot-password`     | 🌐 Everyone   |
+| GET    | `/api/v1/pharmacies`               | 🌐 Everyone   |
+| GET    | `/api/v1/pharmacies/:id`           | 🌐 Everyone   |
+| GET    | `/api/v1/medicines`                | 🌐 Everyone   |
+| GET    | `/api/v1/pharmacies/:id/inventory` | 🌐 Everyone   |
+| GET    | `/api/v1/users/me`                 | 🔒 Logged in  |
+| PUT    | `/api/v1/users/me`                 | 🔒 Logged in  |
+| POST   | `/api/v1/orders`                   | 🔒 Logged in  |
+| GET    | `/api/v1/orders`                   | 🔒 Logged in  |
+| GET    | `/api/v1/notifications`            | 🔒 Logged in  |
+| POST   | `/api/v1/chats`                    | 🔒 Logged in  |
+| GET    | `/api/v1/receipts`                 | 🔒 Logged in  |
+| POST   | `/api/v1/complaints`               | 🔒 Logged in  |
+| GET    | `/api/v1/admin/*`                  | 👑 Admin only |
 
 ---
 
 <div align="center">
 
-🌐 **Live Application:** [https://clinic-hub-system-9jzx-psi.vercel.app](https://clinic-hub-system-9jzx-psi.vercel.app)  
-📖 **API Docs:** [https://clinichub-system.onrender.com/api-docs](https://clinichub-system.onrender.com/api-docs)
+🌐 Live : [Demo](https://clinic-hub-system-9jzx-psi.vercel.app)
 
 Built with ❤️ by the ClinicHub Team
 
