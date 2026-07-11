@@ -91,6 +91,20 @@ export function createApp(): Application {
   // ─── Rate Limiting ────────────────────────────────────────────────────────
   app.use('/api/v1', globalRateLimiter);
 
+  // ─── Root Route ───────────────────────────────────────────────────────────
+  app.get('/', (_req, res) => {
+    res.json({
+      success: true,
+      message: 'Welcome to ClinicHub Smart Pharmacy API 🚀',
+      version: '1.0.0',
+      status: 'online',
+      environment: env.NODE_ENV,
+      docs: '/api-docs',
+      health: '/health',
+      timestamp: new Date().toISOString(),
+    });
+  });
+
   // ─── Health Check ─────────────────────────────────────────────────────────
   app.get('/health', (_req, res) => {
     res.json({

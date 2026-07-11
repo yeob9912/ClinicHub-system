@@ -318,7 +318,7 @@ export default function PharmacyDetailsPage() {
       const items = Object.entries(selectedItems).map(([itemId, qty]) => {
         const inv = inventory.find((i) => i._id === itemId);
         return { 
-          medicine_id: inv?.medicine_id?._id || inv?.medicine_id?.id || null, 
+          medicine_id: inv?.medicine_id?._id || null, 
           name: inv?.medicine_id?.name ?? "Unknown Medicine", 
           quantity: qty, 
           price: inv?.price 
