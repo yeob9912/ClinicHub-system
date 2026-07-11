@@ -187,6 +187,6 @@ ClinicHub-System/
 
 🌐 Live : [Demo](https://clinic-hub-system-9jzx-psi.vercel.app)
 
-Built with ❤️ by the ClinicHub Team
+Built with ❤️ by Yehwala obssi
 
 </div>
