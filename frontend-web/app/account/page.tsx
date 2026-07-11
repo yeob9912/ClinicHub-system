@@ -2,7 +2,7 @@
 
 import { useUser } from "@/context/UserContext";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, Suspense } from "react";
 import { motion, AnimatePresence, useSpring, useTransform } from "framer-motion";
 import { 
   User as UserIcon, 
@@ -899,7 +899,7 @@ function OrderCard({ order, index, onRefresh }: { order: Order; index: number; o
 
 
 // ══════════════════════════════════════════════════════════════════════════════
-export default function AccountPage() {
+function AccountPageContent() {
   const { user, authReady, updateProfile, uploadAvatarFile, logout } = useUser();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -1422,5 +1422,20 @@ export default function AccountPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function AccountPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center bg-gray-50/50">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-12 h-12 border-4 border-[#24D2A6] border-t-transparent rounded-full animate-spin" />
+          <p className="text-sm font-black text-slate-400 uppercase tracking-widest animate-pulse">Loading secure portal...</p>
+        </div>
+      </div>
+    }>
+      <AccountPageContent />
+    </Suspense>
   );
 }
