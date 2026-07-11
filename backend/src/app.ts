@@ -24,7 +24,6 @@ import { ordersRouter } from './modules/orders/orders.routes';
 import { chatsRouter } from './modules/chats/chats.routes';
 import { callsRouter } from './modules/calls/calls.routes';
 import { receiptsRouter } from './modules/receipts/receipts.routes';
-import { salesRouter } from './modules/sales/sales.routes';
 import { complaintsRouter } from './modules/complaints/complaints.routes';
 
 export function createApp(): Application {
@@ -173,9 +172,6 @@ export function createApp(): Application {
 
   // Receipts — require JWT (staff)
   app.use('/api/v1/receipts', authMiddleware, receiptsRouter);
-
-  // Sales — require JWT (staff)
-  app.use('/api/v1/sales', authMiddleware, salesRouter);
 
   // Admin — require JWT + admin role
   app.use('/api/v1/admin', authMiddleware, roleGuard('admin'), adminRouter);
