@@ -70,31 +70,16 @@ export default function PharmacyCard({ pharmacy, viewType = "list", highlightedM
       window.location.href = `tel:${pharmacy.phone}`;
     });
 
-  const nameLower = (pharmacy.name ?? "").toLowerCase();
-
-  const isP1 = pharmacy.id === "p1" || nameLower.includes("red cross");
-  const isP2 = pharmacy.id === "p2" || nameLower.includes("kenema");
-  const isP3 = pharmacy.id === "p3" || nameLower.includes("lion") || nameLower.includes("life-line");
-
-  const displayName = isP1 ? "Red Cross Pharmacy - Bole Branch" :
-                      isP2 ? "Kenema Pharmacy No. 4" :
-                      isP3 ? "Life-Line Pharmacy" : pharmacy.name;
-
-  const displayAddress = isP1 ? "Bole Road, Near Friendship Mall, Addis Ababa" :
-                         isP2 ? "Piazza, Churchill Ave, Addis Ababa" :
-                         isP3 ? "Megenagna Roundabout, Addis Ababa" : pharmacy.address;
-
+  const displayName = pharmacy.name;
+  const displayAddress = pharmacy.address || pharmacy.city || "Addis Ababa";
   const displayHours = pharmacy.hours || "Open 24 Hours";
 
-  const displayPrice = (pharmacy as any).highest_price ? (pharmacy as any).highest_price :
-                       (highlightedMedicine && pharmacy.matched_medicine) ? pharmacy.price :
-                       isP1 ? 45.50 :
-                       isP2 ? 42.00 :
-                       isP3 ? 48.25 : (pharmacy.price || 400);
+  const displayPrice = (pharmacy as any).highest_price ?? pharmacy.price ?? 450;
 
-  const displayDistance = isP1 ? 1.2 : isP2 ? 2.5 : isP3 ? 3.1 : (pharmacy.distance || 4.5);
-  const displayRating   = isP1 ? 4.8 : isP2 ? 4.5 : isP3 ? 4.2 : (pharmacy.rating || 4.0);
-  const displayReviews  = isP1 ? 124  : isP2 ? 89  : isP3 ? 56  : (pharmacy.reviews || 20);
+  const rawDist = (pharmacy as any).distance_km ?? pharmacy.distance;
+  const displayDistance = rawDist !== undefined && rawDist !== null ? Number(rawDist).toFixed(1) : "2.0";
+  const displayRating = pharmacy.rating || 4.5;
+  const displayReviews = (pharmacy as any).ratings_count || (pharmacy as any).reviews || 24;
 
   const handleSelect = () => {
     if (highlightedMedicine) {

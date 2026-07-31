@@ -31,16 +31,19 @@ function normalisePharmacy(p: any) {
     return "https://images.unsplash.com/photo-1538108149393-fdfd81895907?auto=format&fit=crop&q=80&w=800";
   };
 
+  const highestPrice = p.highest_price ?? p.price ?? 450;
   return {
     id: p._id ?? p.id,
     name: p.name,
-    address: p.address ?? p.city ?? "",
+    address: p.address ?? p.city ?? "Addis Ababa",
     phone: p.phone ?? "",
-    rating: p.rating ?? 0,
+    rating: p.rating ?? 4.5,
     image: resolveImage(),
-    price: p.price ?? 450,
-    distance: p.distance ?? 1.2,
-    isOpen: p.status === "approved",
+    price: p.price ?? highestPrice,
+    highest_price: highestPrice,
+    distance: p.distance_km ?? p.distance ?? 2.0,
+    distance_km: p.distance_km ?? p.distance ?? 2.0,
+    isOpen: p.status === "approved" || p.status === "active" || p.is_active !== false,
     hours: p.opening_hours ? (() => {
       const days = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
       const today = days[new Date().getDay()];
@@ -71,35 +74,66 @@ export default function NearbyPharmacies() {
   const [nearbyPharmacies, setNearbyPharmacies] = useState<any[]>([]);
 
   useEffect(() => {
-    setLoading(true);
-    fetch(`${API}/pharmacies?status=approved&limit=4`)
-      .then(async (r) => {
-        if (!r.ok) throw new Error("Failed to fetch pharmacies");
-        return r.json();
-      })
-      .then((res) => {
-        const list = res.data ?? res;
-        setNearbyPharmacies(Array.isArray(list) ? list.map(normalisePharmacy) : []);
-      })
-      .catch((err) => console.error(err))
-      .finally(() => setLoading(false));
+    const fetchPharmacies = () => {
+      const storedLat = localStorage.getItem("user_detected_lat");
+      const storedLng = localStorage.getItem("user_detected_lng");
+      if (!storedLat || !storedLng) return;
 
-    // Simulate real-time stock updates every few seconds
+      setLoading(true);
+      const coords = { lat: parseFloat(storedLat), lng: parseFloat(storedLng) };
+
+      let url = `${API}/pharmacies?status=approved&limit=100`;
+      fetch(url)
+        .then(async (r) => {
+          if (!r.ok) throw new Error("Failed to fetch pharmacies");
+          return r.json();
+        })
+        .then((res) => {
+          const list = res.data ?? res;
+          const mapped = Array.isArray(list) ? list.map((p) => {
+            const norm = normalisePharmacy(p);
+            const pLat = p.latitude ?? 9.03;
+            const pLng = p.longitude ?? 38.74;
+
+            const dLat = ((pLat - coords.lat) * Math.PI) / 180;
+            const dLng = ((pLng - coords.lng) * Math.PI) / 180;
+            const a = Math.sin(dLat / 2) ** 2 + Math.cos((coords.lat * Math.PI) / 180) * Math.cos((pLat * Math.PI) / 180) * Math.sin(dLng / 2) ** 2;
+            const dist = Math.round(6371 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)) * 10) / 10;
+            norm.distance = dist;
+            norm.distance_km = dist;
+            return norm;
+          }) : [];
+
+          // Sort by nearest first and display top 4
+          const sorted = mapped.sort((a, b) => (a.distance ?? 0) - (b.distance ?? 0)).slice(0, 4);
+          setNearbyPharmacies(sorted);
+        })
+        .catch((err) => console.error(err))
+        .finally(() => setLoading(false));
+    };
+
+    // Try initial load
+    fetchPharmacies();
+
+    // Listen for coordinates update
+    window.addEventListener("location_detected", fetchPharmacies);
+
     const interval = setInterval(() => {
       setUpdatingStr(true);
       setTimeout(() => setUpdatingStr(false), 800);
     }, 5000);
 
     return () => {
+      window.removeEventListener("location_detected", fetchPharmacies);
       clearInterval(interval);
     };
   }, []);
 
   return (
-    <section id="pharmacies" className="py-24 bg-white">
+    <section id="pharmacies" className="py-24 bg-white relative">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         
-        <div className="flex flex-col justify-start items-start mb-12">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-12 gap-6">
           <div className="max-w-2xl text-left">
             <div className="flex items-center gap-2 mb-4">
               <span className="bg-[#24D2A6]/10 text-[#24D2A6] px-4 py-1 rounded-full text-xs font-black uppercase tracking-widest flex items-center gap-2">

@@ -203,9 +203,35 @@ export class PharmaciesService {
   }
 
   async list(params: any) {
-    const { page = 1, limit = 20, status, medicine, owner_id } = params;
+    const { page = 1, limit = 20, status, medicine, owner_id, lat, lng, radius } = params;
     const { page: p, limit: l } = parsePagination(page, limit);
     const skip = (p - 1) * l;
+
+    const userLat = lat !== undefined && lat !== null && lat !== '' ? Number(lat) : undefined;
+    const userLng = lng !== undefined && lng !== null && lng !== '' ? Number(lng) : undefined;
+    const userRadius = radius !== undefined && radius !== null && radius !== '' ? Number(radius) : undefined;
+
+    const attachDistance = (items: any[]) => {
+      if (userLat === undefined || userLng === undefined || isNaN(userLat) || isNaN(userLng)) {
+        return items;
+      }
+      let list = items.map((ph: any) => {
+        const phLat = ph.latitude ?? 9.03;
+        const phLng = ph.longitude ?? 38.74;
+        const dist = this.haversineDistance(userLat, userLng, phLat, phLng);
+        return {
+          ...ph,
+          distance_km: dist,
+          distance: dist,
+        };
+      });
+
+      if (userRadius !== undefined && !isNaN(userRadius) && userRadius > 0) {
+        list = list.filter((ph: any) => ph.distance_km <= userRadius);
+      }
+
+      return list;
+    };
 
     // When querying by owner, show ALL statuses (pending, rejected, etc.)
     const filter: any = owner_id ? { owner_id } : { is_active: true };
@@ -245,11 +271,10 @@ export class PharmaciesService {
       filter._id = { $in: pharmacyIds };
 
       // 3. Find the pharmacies carrying this medicine
-      const pharmacies = await PharmacyModel.find(filter).skip(skip).limit(l).lean();
-      const count = await PharmacyModel.countDocuments(filter);
+      const pharmacies = await PharmacyModel.find(filter).lean();
 
       // 4. Attach matched medicine info and set the active price/status to match
-      const data = pharmacies.map((pharmacy: any) => {
+      let data = pharmacies.map((pharmacy: any) => {
         const matchedInvs = inventoryItems.filter(inv => inv.pharmacy_id.toString() === pharmacy._id.toString());
         matchedInvs.sort((a, b) => a.price - b.price);
         const bestInv = matchedInvs[0];
@@ -270,14 +295,20 @@ export class PharmaciesService {
         };
       });
 
-      const dataWithHighestPrices = await this.attachHighestPrices(data);
+      data = attachDistance(data);
+      const count = data.length;
+      const paginatedData = data.slice(skip, skip + l);
+
+      const dataWithHighestPrices = await this.attachHighestPrices(paginatedData);
       return { data: dataWithHighestPrices, meta: buildPaginationMeta(count, p, l) };
     }
 
-    const data = await PharmacyModel.find(filter).skip(skip).limit(l).lean();
-    const count = await PharmacyModel.countDocuments(filter);
+    const pharmacies = await PharmacyModel.find(filter).lean();
+    let data = attachDistance(pharmacies);
+    const count = data.length;
+    const paginatedData = data.slice(skip, skip + l);
 
-    const dataWithHighestPrices = await this.attachHighestPrices(data);
+    const dataWithHighestPrices = await this.attachHighestPrices(paginatedData);
     return { data: dataWithHighestPrices, meta: buildPaginationMeta(count, p, l) };
   }
 

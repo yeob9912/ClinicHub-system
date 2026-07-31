@@ -3,9 +3,13 @@
 import { motion } from "framer-motion";
 import { ArrowRight, Info } from "lucide-react";
 import { useAppContext } from "./providers";
+import { useUser } from "@/context/UserContext";
+import { useRouter } from "next/navigation";
 
 export default function CTA() {
   const { t } = useAppContext();
+  const { user } = useUser();
+  const router = useRouter();
 
   return (
     <section className="relative py-24 overflow-hidden">
@@ -148,18 +152,22 @@ export default function CTA() {
           </p>
 
           <div className="flex flex-col sm:flex-row justify-center items-center gap-4">
-            <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              className="px-8 py-4 bg-white text-[#24D2A6] rounded-full font-bold text-lg shadow-[0_0_20px_rgba(255,255,255,0.4)] hover:shadow-[0_0_30px_rgba(255,255,255,0.6)] flex items-center gap-2 transition-shadow w-full sm:w-auto justify-center group"
-            >
-              {t("cta.start")}
-              <ArrowRight className="group-hover:translate-x-1 transition-transform" size={20} />
-            </motion.button>
+            {!user && (
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => router.push("/signup")}
+                className="px-8 py-4 bg-white text-[#24D2A6] rounded-full font-bold text-lg shadow-[0_0_20px_rgba(255,255,255,0.4)] hover:shadow-[0_0_30px_rgba(255,255,255,0.6)] flex items-center gap-2 transition-shadow w-full sm:w-auto justify-center group"
+              >
+                {t("cta.start")}
+                <ArrowRight className="group-hover:translate-x-1 transition-transform" size={20} />
+              </motion.button>
+            )}
 
             <motion.button
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
+              onClick={() => router.push("/help-center")}
               className="px-8 py-4 bg-emerald-800/40 hover:bg-emerald-800/60 text-white rounded-full font-medium text-lg border border-emerald-400/30 backdrop-blur-sm flex items-center gap-2 transition-colors w-full sm:w-auto justify-center"
             >
               <Info size={20} />

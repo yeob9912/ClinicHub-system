@@ -40,16 +40,61 @@ const SEEDED_MEDICINES = [
   { name: "Zinc Sulphate 20mg Tablet", price: 180, stockStatus: "In Stock" },
 ];
 
-// Normalise a backend pharmacy to the shape PharmacyCard expects
-function normalisePharmacy(p: any) {
-  const nameLower = (p.name ?? "").toLowerCase();
-  const isP1 = p.id === "p1" || p._id === "p1" || nameLower.includes("red cross");
-  const isP2 = p.id === "p2" || p._id === "p2" || nameLower.includes("kenema");
-  const isP3 = p.id === "p3" || p._id === "p3" || nameLower.includes("lion") || nameLower.includes("life-line");
+function haversineDistance(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R = 6371;
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLng = ((lng2 - lng1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLng / 2) ** 2;
+  return Math.round(R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)) * 10) / 10;
+}
 
-  const resolvedRating = isP1 ? 4.8 : isP2 ? 4.5 : isP3 ? 4.2 : (p.rating || 4.0);
-  const resolvedDistance = isP1 ? 1.2 : isP2 ? 2.5 : isP3 ? 3.1 : (p.distance || 4.5);
+const PHARMACY_COORDS: Record<string, { lat: number; lng: number }> = {
+  "red cross": { lat: 8.995, lng: 38.788 },
+  "kenema": { lat: 9.035, lng: 38.752 },
+  "lion": { lat: 9.018, lng: 38.801 },
+  "ethio": { lat: 9.015, lng: 38.767 },
+  "sheger": { lat: 9.022, lng: 38.835 },
+  "abyssinia": { lat: 8.991, lng: 38.742 },
+  "zewditu": { lat: 9.038, lng: 38.763 },
+  "unity": { lat: 9.010, lng: 38.745 },
+  "modern": { lat: 9.030, lng: 38.758 },
+  "lifecare": { lat: 8.925, lng: 38.762 }
+};
+
+// Normalise a backend pharmacy to the shape PharmacyCard expects
+function normalisePharmacy(p: any, userCoords: { lat: number; lng: number } | null = null) {
+  const nameLower = (p.name ?? "").toLowerCase();
   
+  // Resolve geographic coordinates
+  let phLat = p.latitude;
+  let phLng = p.longitude;
+  if (!phLat || !phLng) {
+    const key = Object.keys(PHARMACY_COORDS).find(k => nameLower.includes(k));
+    if (key) {
+      phLat = PHARMACY_COORDS[key].lat;
+      phLng = PHARMACY_COORDS[key].lng;
+    } else {
+      // Deterministic spread around Addis Ababa center for unmapped pharmacies
+      const hash = (p.name ?? "ph").split("").reduce((acc: number, c: string) => acc + c.charCodeAt(0), 0);
+      phLat = 9.03 + (hash % 10 - 5) * 0.012;
+      phLng = 38.74 + (hash % 8 - 4) * 0.015;
+    }
+  }
+
+  // Calculate dynamic distance if user location is available
+  let resolvedDistance = p.distance_km ?? p.distance;
+  if (userCoords && phLat && phLng) {
+    resolvedDistance = haversineDistance(userCoords.lat, userCoords.lng, phLat, phLng);
+  }
+  if (resolvedDistance === undefined || resolvedDistance === null) {
+    // Default reference distance from Addis Ababa city center if location permission not granted yet
+    resolvedDistance = haversineDistance(9.03, 38.74, phLat, phLng);
+  }
+
   const days = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
   const today = days[new Date().getDay()];
   const todayHours = p.opening_hours ? p.opening_hours[today] : null;
@@ -62,19 +107,19 @@ function normalisePharmacy(p: any) {
         return `${first.open} - ${first.close}`;
       })() : "Open 24 Hours");
 
+  const highestPrice = p.highest_price ?? p.price ?? 450;
+
   return {
     id: p._id ?? p.id,
-    name: isP1 ? "Red Cross Pharmacy - Bole Branch" : isP2 ? "Kenema Pharmacy No. 4" : isP3 ? "Life-Line Pharmacy" : p.name,
-    address: isP1 ? "Bole Road, Near Friendship Mall, Addis Ababa" : isP2 ? "Piazza, Churchill Ave, Addis Ababa" : isP3 ? "Megenagna Roundabout, Addis Ababa" : (p.address ?? p.city ?? ""),
+    name: p.name,
+    address: p.address ?? p.city ?? "Addis Ababa",
     phone: p.phone ?? "",
-    rating: resolvedRating,
+    rating: p.rating || 4.5,
     image: (() => {
-      // 1. Use DB logo_url if it's a real http URL or a base64 data URI
       if (p.logo_url && (p.logo_url.startsWith("http") || p.logo_url.startsWith("data:"))) {
         return p.logo_url;
       }
-      // 2. Name-based fallbacks (always visible Unsplash images)
-      const n = (p.name ?? "").toLowerCase();
+      const n = nameLower;
       if (n.includes("red cross"))  return "https://images.unsplash.com/photo-1538108149393-fdfd81895907?auto=format&fit=crop&q=80&w=800";
       if (n.includes("kenema"))     return "https://images.unsplash.com/photo-1516549655169-df83a0774514?auto=format&fit=crop&q=80&w=800";
       if (n.includes("lion"))       return "https://images.unsplash.com/photo-1586015555751-63bb77f4322a?auto=format&fit=crop&q=80&w=800";
@@ -85,21 +130,21 @@ function normalisePharmacy(p: any) {
       if (n.includes("sheger"))     return "https://images.unsplash.com/photo-1585435557343-3b092031a831?auto=format&fit=crop&q=80&w=800";
       if (n.includes("lifecare") || n.includes("life care")) return "https://images.unsplash.com/photo-1664447962596-13c058a2c8a2?auto=format&fit=crop&q=80&w=800";
       if (n.includes("modern"))     return "https://images.unsplash.com/photo-1586773860418-d3b97978c651?auto=format&fit=crop&q=80&w=800";
-      // 3. Generic pharmacy fallback
       return "https://images.unsplash.com/photo-1538108149393-fdfd81895907?auto=format&fit=crop&q=80&w=800";
     })(),
-    price: p.price ?? 400,
-    highest_price: p.highest_price ?? p.price ?? 400,
+    price: p.price ?? highestPrice,
+    highest_price: highestPrice,
     distance: resolvedDistance,
-    isOpen: p.status === "approved",
+    distance_km: resolvedDistance,
+    isOpen: p.status === "approved" || p.status === "active" || p.is_active !== false,
     hours: displayHours,
     status: p.matched_medicine 
       ? (p.matched_medicine.stock_quantity >= 15 ? "In Stock" : p.matched_medicine.stock_quantity > 0 ? "Low Stock" : "Out of Stock") 
       : "In Stock",
     medicines: SEEDED_MEDICINES,
     city: p.city ?? "",
-    latitude: p.latitude,
-    longitude: p.longitude,
+    latitude: phLat,
+    longitude: phLng,
     logo_url: p.logo_url,
     matched_medicine: p.matched_medicine,
     announcements: p.announcements ?? [],
@@ -112,12 +157,28 @@ function DiscoveryContent() {
 
   const [searchQuery, setSearchQuery] = useState(searchParams.get("medicine") || "");
   const [viewType, setViewType] = useState<"grid" | "list">("list");
-  const [sortBy, setSortBy] = useState("rating");
+  const [sortBy, setSortBy] = useState("distance");
   const [selectedRating, setSelectedRating] = useState<number | null>(null);
   const [openNowOnly, setOpenNowOnly] = useState(false);
   const [inStockOnly, setInStockOnly] = useState(false);
-  const [distance, setDistance] = useState(5);
+  const [distance, setDistance] = useState(10);
   const [priceMax, setPriceMax] = useState(1000);
+  const [userCoords, setUserCoords] = useState<{ lat: number; lng: number } | null>(null);
+
+  // Request user GPS location on mount
+  useEffect(() => {
+    if (typeof window !== "undefined" && "geolocation" in navigator) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          setUserCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+        },
+        (err) => {
+          console.warn("Location permission denied or unavailable:", err.message);
+        },
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
+      );
+    }
+  }, []);
 
   // Raw pharmacies from API
   const [allPharmacies, setAllPharmacies] = useState<any[]>([]);
@@ -125,12 +186,15 @@ function DiscoveryContent() {
   const [apiError, setApiError] = useState<string | null>(null);
   const [fetchTick, setFetchTick] = useState(0); // increment to retry
 
-  // Fetch approved pharmacies from backend on mount, retry, or searchQuery changes
+  // Fetch approved pharmacies from backend on mount, retry, searchQuery or userCoords changes
   useEffect(() => {
     setApiLoading(true);
     setApiError(null);
     const medicineParam = searchQuery.trim();
-    const url = `${API}/pharmacies?status=approved&limit=100${medicineParam ? `&medicine=${encodeURIComponent(medicineParam)}` : ''}`;
+    let url = `${API}/pharmacies?status=approved&limit=100${medicineParam ? `&medicine=${encodeURIComponent(medicineParam)}` : ''}`;
+    if (userCoords) {
+      url += `&lat=${userCoords.lat}&lng=${userCoords.lng}&radius=${distance}`;
+    }
     
     fetch(url, {
       headers: getAuthHeader(),
@@ -145,14 +209,14 @@ function DiscoveryContent() {
       })
       .then((res) => {
         const list = res.data ?? res;
-        setAllPharmacies(Array.isArray(list) ? list.map(normalisePharmacy) : []);
+        setAllPharmacies(Array.isArray(list) ? list.map((p) => normalisePharmacy(p, userCoords)) : []);
       })
       .catch((err: Error) => {
         setAllPharmacies([]);
         setApiError(err.message ?? "Failed to load pharmacies");
       })
       .finally(() => setApiLoading(false));
-  }, [fetchTick, searchQuery]);
+  }, [fetchTick, searchQuery, userCoords, distance]);
 
   // Sync with URL params
   useEffect(() => {
@@ -174,7 +238,8 @@ function DiscoveryContent() {
       return matchesRating && matchesSearch && matchesOpen && matchesStock && matchesDistance && matchesPrice;
     });
 
-    if (sortBy === "rating") result.sort((a, b) => b.rating - a.rating);
+    if (sortBy === "distance") result.sort((a, b) => (a.distance ?? 0) - (b.distance ?? 0));
+    else if (sortBy === "rating") result.sort((a, b) => b.rating - a.rating);
     else if (sortBy === "name") result.sort((a, b) => a.name.localeCompare(b.name));
     else if (sortBy === "price") result.sort((a, b) => a.price - b.price);
     return result;
@@ -436,6 +501,7 @@ function DiscoveryContent() {
                   onChange={(e) => setSortBy(e.target.value)}
                   className="appearance-none bg-slate-50 border border-slate-100 text-slate-700 text-xs font-bold rounded-xl pl-9 pr-8 py-3.5 focus:outline-none focus:ring-2 focus:ring-[#00cba9]/25 transition-all cursor-pointer"
                 >
+                  <option value="distance">Sort by: Distance (Nearest first)</option>
                   <option value="rating">Sort by: Rating</option>
                   <option value="name">Sort by: Name (A–Z)</option>
                   <option value="price">Sort by: Price (Low to High)</option>
