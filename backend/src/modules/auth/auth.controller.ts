@@ -96,9 +96,32 @@ export const authController = {
     }
   },
 
-  googleStart(_req: Request, res: Response, next: NextFunction): void {
+  googleStart(req: Request, res: Response, next: NextFunction): void {
     try {
-      const url = authService.getGoogleAuthUrl();
+      const origin = req.headers.referer || req.headers.origin;
+      let returnTo = env.FRONTEND_URL;
+      if (typeof origin === 'string' && origin.startsWith('http')) {
+        try {
+          returnTo = new URL(origin).origin;
+        } catch {
+          // ignore
+        }
+      }
+
+      const host = req.get('host') || 'localhost:3001';
+      const isHttps = req.protocol === 'https' || req.get('x-forwarded-proto') === 'https';
+      const protocol = isHttps ? 'https' : 'http';
+
+      let redirectUri: string;
+      if (host.includes('localhost') || host.includes('127.0.0.1')) {
+        redirectUri = `${protocol}://${host}/api/v1/auth/google/callback`;
+      } else if (env.GOOGLE_REDIRECT_URI) {
+        redirectUri = env.GOOGLE_REDIRECT_URI;
+      } else {
+        redirectUri = `${protocol}://${host}/api/v1/auth/google/callback`;
+      }
+
+      const url = authService.getGoogleAuthUrl({ redirectUri, returnTo });
       res.redirect(url);
     } catch (err: unknown) {
       const e = err as Error & { statusCode?: number };
@@ -111,21 +134,39 @@ export const authController = {
   },
 
   async googleCallback(req: Request, res: Response, next: NextFunction): Promise<void> {
+    let customRedirectUri: string | undefined;
+    let targetFrontend = env.FRONTEND_URL;
+
+    const rawState = req.query.state as string | undefined;
+    if (rawState) {
+      try {
+        const decoded = JSON.parse(Buffer.from(rawState, 'base64url').toString('utf8'));
+        if (decoded.redirectUri && typeof decoded.redirectUri === 'string') {
+          customRedirectUri = decoded.redirectUri;
+        }
+        if (decoded.returnTo && typeof decoded.returnTo === 'string' && decoded.returnTo.startsWith('http')) {
+          targetFrontend = decoded.returnTo;
+        }
+      } catch {
+        // Fall back to defaults
+      }
+    }
+
     try {
       const code = req.query.code as string | undefined;
 
       if (!code) {
-        res.redirect(`${env.FRONTEND_URL}/login?error=${encodeURIComponent('Google sign-in was cancelled')}`);
+        res.redirect(`${targetFrontend}/login?error=${encodeURIComponent('Google sign-in was cancelled')}`);
         return;
       }
 
-      const result = await authService.handleGoogleCallback(code);
+      const result = await authService.handleGoogleCallback(code, customRedirectUri);
       const params = new URLSearchParams({
         access_token: result.session.access_token,
         refresh_token: result.session.refresh_token,
       });
 
-      res.redirect(`${env.FRONTEND_URL}/auth/callback?${params.toString()}`);
+      res.redirect(`${targetFrontend}/auth/callback?${params.toString()}`);
     } catch (err: unknown) {
       const e = err as Error & { statusCode?: number; code?: string; googleProfile?: { email?: string; name?: string; google_id?: string } };
 
@@ -138,11 +179,11 @@ export const authController = {
           name,
           google_id,
         });
-        res.redirect(`${env.FRONTEND_URL}/signup?${params.toString()}`);
+        res.redirect(`${targetFrontend}/signup?${params.toString()}`);
         return;
       }
 
-      res.redirect(`${env.FRONTEND_URL}/login?error=${encodeURIComponent(e.message || 'Google sign-in failed')}`);
+      res.redirect(`${targetFrontend}/login?error=${encodeURIComponent(e.message || 'Google sign-in failed')}`);
     }
   },
 

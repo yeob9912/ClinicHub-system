@@ -287,7 +287,7 @@ export class AuthService {
     });
   }
 
-  getGoogleAuthUrl(): string {
+  getGoogleAuthUrl(options?: { redirectUri?: string; returnTo?: string }): string {
     if (!env.GOOGLE_CLIENT_ID) {
       throw Object.assign(new Error('Google sign-in is not configured'), {
         statusCode: 503,
@@ -296,7 +296,13 @@ export class AuthService {
     }
 
     const redirectUri =
-      env.GOOGLE_REDIRECT_URI || `${env.API_BASE_URL}/api/v1/auth/google/callback`;
+      options?.redirectUri || env.GOOGLE_REDIRECT_URI || `${env.API_BASE_URL}/api/v1/auth/google/callback`;
+
+    const statePayload = {
+      redirectUri,
+      returnTo: options?.returnTo || env.FRONTEND_URL,
+    };
+    const state = Buffer.from(JSON.stringify(statePayload)).toString('base64url');
 
     const params = new URLSearchParams({
       client_id: env.GOOGLE_CLIENT_ID,
@@ -305,12 +311,13 @@ export class AuthService {
       scope: 'openid email profile',
       access_type: 'offline',
       prompt: 'consent',
+      state,
     });
 
     return `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
   }
 
-  async handleGoogleCallback(code: string) {
+  async handleGoogleCallback(code: string, customRedirectUri?: string) {
     if (!env.GOOGLE_CLIENT_ID || !env.GOOGLE_CLIENT_SECRET) {
       throw Object.assign(new Error('Google sign-in is not configured'), {
         statusCode: 503,
@@ -319,7 +326,7 @@ export class AuthService {
     }
 
     const redirectUri =
-      env.GOOGLE_REDIRECT_URI || `${env.API_BASE_URL}/api/v1/auth/google/callback`;
+      customRedirectUri || env.GOOGLE_REDIRECT_URI || `${env.API_BASE_URL}/api/v1/auth/google/callback`;
 
     const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
       method: 'POST',
