@@ -30,9 +30,10 @@ export async function authMiddleware(req: Request, res: Response, next: NextFunc
 
     req.userId = user._id.toString();
     next();
-  } catch (err) {
+  } catch (err: unknown) {
+    const error = err as Error | undefined;
     logger.error({ err }, 'authentication error');
-    sendUnauthorized(res, 'verification failed');
+    sendUnauthorized(res, `verification failed: ${error?.message || 'unknown error'}`);
   }
 }
 

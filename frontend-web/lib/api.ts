@@ -1,23 +1,21 @@
 import { clearTokens, getAccessToken, getRefreshToken, setTokens } from "./auth-storage";
 
-function getInitialBaseUrl(): string {
+export function getApiBaseUrl(): string {
   if (process.env.NEXT_PUBLIC_API_URL) {
-    return process.env.NEXT_PUBLIC_API_URL;
+    return process.env.NEXT_PUBLIC_API_URL.replace(/\/api\/v\d+\/?$/, "").replace(/\/$/, "");
   }
   if (
     typeof window !== "undefined" &&
     window.location.hostname !== "localhost" &&
     window.location.hostname !== "127.0.0.1"
   ) {
-    return "https://clinichub-system.onrender.com/api/v1";
+    return "https://clinichub-system.onrender.com";
   }
-  return "http://localhost:3001/api/v1";
+  return "http://localhost:3001";
 }
 
 // Strip trailing /api/v1 (or /api/vN) so paths like /api/v1/users/me don't get doubled.
-export const API_BASE_URL = getInitialBaseUrl()
-  .replace(/\/api\/v\d+\/?$/, "")
-  .replace(/\/$/, "") || "http://localhost:3001";
+export const API_BASE_URL = getApiBaseUrl();
 
 export type ApiResponse<T> = {
   success: boolean;
@@ -68,7 +66,8 @@ async function refreshAccessToken(): Promise<boolean> {
   const refreshToken = getRefreshToken();
   if (!refreshToken) return false;
 
-  const res = await fetch(`${API_BASE_URL}/api/v1/auth/refresh`, {
+  const baseUrl = getApiBaseUrl();
+  const res = await fetch(`${baseUrl}/api/v1/auth/refresh`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ refresh_token: refreshToken }),
@@ -102,7 +101,8 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
     if (token) requestHeaders.set("Authorization", `Bearer ${token}`);
   }
 
-  const url = path.startsWith("http") ? path : `${API_BASE_URL}${path}`;
+  const baseUrl = getApiBaseUrl();
+  const url = path.startsWith("http") ? path : `${baseUrl}${path}`;
 
   let res = await fetch(url, { ...rest, headers: requestHeaders });
 
