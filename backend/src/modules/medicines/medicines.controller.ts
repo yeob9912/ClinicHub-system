@@ -14,7 +14,7 @@ export const medicinesController = {
         requires_rx: requires_rx !== undefined ? requires_rx === 'true' : undefined,
         page: page ? parseInt(page) : undefined,
         limit: limit ? parseInt(limit) : undefined,
-        authId: req.userId,
+        userId: req.userId,
       });
       res.json({ success: true, ...result, message: 'Search results' });
     } catch (err) {

@@ -8,8 +8,6 @@ export async function connectMongo(): Promise<void> {
   await mongoose.connect(env.MONGODB_URI, {
     dbName: env.MONGODB_DB_NAME,
   });
-
-  logger.info({ db: mongoose.connection.name }, 'MongoDB connected');
 }
 
 export async function disconnectMongo(): Promise<void> {

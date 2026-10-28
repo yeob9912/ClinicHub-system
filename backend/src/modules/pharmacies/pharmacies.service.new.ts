@@ -30,7 +30,7 @@ const PharmacySchema = new mongoose.Schema({
 // Geospatial index for near queries
 PharmacySchema.index({ location: '2dsphere' });
 
-const Pharmacy = mongoose.models.Pharmacy || mongoose.model('Pharmacy', PharmacySchema);
+const Pharmacy: any = mongoose.models.Pharmacy || mongoose.model('Pharmacy', PharmacySchema);
 
 const InventorySchema = new mongoose.Schema({
   pharmacy_id: mongoose.Schema.Types.ObjectId,
@@ -42,7 +42,7 @@ const InventorySchema = new mongoose.Schema({
   updatedAt: { type: Date, default: Date.now },
 });
 
-const Inventory = mongoose.models.Inventory || mongoose.model('Inventory', InventorySchema);
+const Inventory: any = mongoose.models.Inventory || mongoose.model('Inventory', InventorySchema);
 
 export class PharmaciesService {
   private haversineDistance(lat1: number, lng1: number, lat2: number, lng2: number): number {

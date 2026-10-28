@@ -1,4 +1,4 @@
-import mongoose, { Document, Schema } from 'mongoose';
+import mongoose, { Document, Schema, Model } from 'mongoose';
 
 export type OrderType = 'order' | 'visit';
 export type OrderStatus =
@@ -83,5 +83,5 @@ const orderSchema = new Schema<IOrder>(
 orderSchema.index({ user_id: 1, created_at: -1 });
 orderSchema.index({ pharmacy_id: 1, status: 1, created_at: -1 });
 
-export const OrderModel =
-  mongoose.models.Order || mongoose.model<IOrder>('Order', orderSchema);
+export const OrderModel: Model<IOrder> =
+  (mongoose.models.Order as Model<IOrder>) || mongoose.model<IOrder>('Order', orderSchema);

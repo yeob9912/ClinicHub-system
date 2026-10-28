@@ -24,7 +24,15 @@ const EnvSchema = z.object({
   GOOGLE_CLIENT_ID: z.string().optional(),
   GOOGLE_CLIENT_SECRET: z.string().optional(),
   GOOGLE_REDIRECT_URI: z.string().optional(),
-  FRONTEND_URL: z.string().default('http://localhost:3000'),
+  FRONTEND_URL: z
+    .string()
+    .default('http://localhost:3000')
+    .transform((url) => {
+      const trimmed = url.trim();
+      if (!trimmed) return 'http://localhost:3000';
+      if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) return trimmed;
+      return `https://${trimmed}`;
+    }),
 
   // Monitoring
   SENTRY_DSN: z.string().optional(),

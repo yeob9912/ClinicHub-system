@@ -4,7 +4,6 @@ import { logger } from './logger';
 
 export function initSentry(): void {
   if (!env.SENTRY_DSN) {
-    logger.info('Sentry DSN not configured — error tracking disabled');
     return;
   }
 

@@ -1,4 +1,4 @@
-import mongoose, { Document, Schema } from 'mongoose';
+import mongoose, { Document, Schema, Model } from 'mongoose';
 
 export type PharmacyStatus = 'pending' | 'approved' | 'rejected' | 'suspended';
 
@@ -117,5 +117,5 @@ pharmacySchema.index({ status: 1, is_active: 1 });
 pharmacySchema.index({ owner_id: 1 });
 pharmacySchema.index({ city: 1 });
 
-export const PharmacyModel =
-  mongoose.models.Pharmacy || mongoose.model<IPharmacy>('Pharmacy', pharmacySchema);
+export const PharmacyModel: Model<IPharmacy> =
+  (mongoose.models.Pharmacy as Model<IPharmacy>) || mongoose.model<IPharmacy>('Pharmacy', pharmacySchema);

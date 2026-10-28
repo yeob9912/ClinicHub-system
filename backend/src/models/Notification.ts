@@ -1,4 +1,4 @@
-import mongoose, { Document, Schema } from 'mongoose';
+import mongoose, { Document, Schema, Model } from 'mongoose';
 
 export type NotificationType =
   | 'pharmacy_approved'
@@ -37,5 +37,5 @@ const notificationSchema = new Schema<INotification>(
 
 notificationSchema.index({ user_id: 1, is_read: 1, created_at: -1 });
 
-export const NotificationModel =
-  mongoose.models.Notification || mongoose.model<INotification>('Notification', notificationSchema);
+export const NotificationModel: Model<INotification> =
+  (mongoose.models.Notification as Model<INotification>) || mongoose.model<INotification>('Notification', notificationSchema);

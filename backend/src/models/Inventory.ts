@@ -1,4 +1,4 @@
-import mongoose, { Document, Schema } from 'mongoose';
+import mongoose, { Document, Schema, Model } from 'mongoose';
 
 export interface IInventory extends Document {
   pharmacy_id: mongoose.Types.ObjectId;
@@ -46,5 +46,5 @@ inventorySchema.pre('save', function (next) {
   next();
 });
 
-export const InventoryModel =
-  mongoose.models.Inventory || mongoose.model<IInventory>('Inventory', inventorySchema);
+export const InventoryModel: Model<IInventory> =
+  (mongoose.models.Inventory as Model<IInventory>) || mongoose.model<IInventory>('Inventory', inventorySchema);

@@ -1,4 +1,4 @@
-import mongoose, { Document, Schema } from 'mongoose';
+import mongoose, { Document, Schema, Model } from 'mongoose';
 
 export type ComplaintStatus = 'New' | 'Under Review' | 'Resolved' | 'Closed';
 export type ComplaintPriority = 'High' | 'Medium' | 'Low' | null;
@@ -47,5 +47,5 @@ const complaintSchema = new Schema<IComplaint>(
 complaintSchema.index({ user_id: 1, created_at: -1 });
 complaintSchema.index({ status: 1, created_at: -1 });
 
-export const ComplaintModel =
-  mongoose.models.Complaint || mongoose.model<IComplaint>('Complaint', complaintSchema);
+export const ComplaintModel: Model<IComplaint> =
+  (mongoose.models.Complaint as Model<IComplaint>) || mongoose.model<IComplaint>('Complaint', complaintSchema);

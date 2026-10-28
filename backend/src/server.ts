@@ -26,57 +26,35 @@ async function restoreBanners(): Promise<void> {
   try {
     const col = mongoose.connection.collection('pharmacies');
     for (const [name, url] of Object.entries(PHARMACY_BANNERS)) {
-      const result = await col.updateOne(
+      await col.updateOne(
         { name, $or: [{ logo_url: null }, { logo_url: '' }, { logo_url: { $exists: false } }] },
         { $set: { logo_url: url, updated_at: new Date() } }
       );
-      if (result.modifiedCount > 0) {
-        logger.info(`✅ Banner restored for pharmacy: ${name}`);
-      }
     }
   } catch (err) {
-    logger.warn({ err }, '⚠️  Could not restore pharmacy banners (non-fatal)');
+    // Non-fatal
   }
 }
 
 async function bootstrap(): Promise<void> {
   initSentry();
 
-  const googleOAuthReady = Boolean(env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET);
-  if (googleOAuthReady) {
-    logger.info('✅ Google OAuth configured');
-  } else {
-    logger.warn(
-      '⚠️ Google OAuth disabled — set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET in backend/.env'
-    );
-  }
-
-  try {
-    await connectMongo();
-    logger.info('✅ MongoDB connection verified');
-    // Restore any accidentally-cleared pharmacy banners
-    await restoreBanners();
-  } catch (err) {
-    logger.error({ err }, '❌ MongoDB connection failed — check MONGODB_URI');
-    process.exit(1);
-  }
-
   const app = createApp();
   const port = env.PORT;
 
   const server = app.listen(port, () => {
-    logger.info(
-      {
-        port,
-        env: env.NODE_ENV,
-        base: `http://localhost:${port}/api/v1`,
-        health: `http://localhost:${port}/health`,
-        docs: `http://localhost:${port}/api-docs`,
-        openapi: `http://localhost:${port}/api-docs.json`,
-      },
-      `🚀 Smart Pharmacy API listening on port ${port}`
-    );
+    console.log(`server is running on ${port}`);
   });
+
+  try {
+    await connectMongo();
+    console.log('db is connected');
+    // Restore any accidentally-cleared pharmacy banners
+    await restoreBanners();
+  } catch (err) {
+    logger.error({ err }, 'MongoDB connection failed — check MONGODB_URI');
+    process.exit(1);
+  }
 
   const shutdown = async (signal: string) => {
     logger.info({ signal }, 'Shutdown signal received — closing server gracefully');

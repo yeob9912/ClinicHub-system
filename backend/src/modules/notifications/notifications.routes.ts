@@ -1,9 +1,12 @@
 import { Router } from 'express';
 import { notificationsController } from './notifications.controller';
 import { validate } from '../../middleware/validate';
+import { authMiddleware } from '../../middleware/auth';
 import { WatchlistAddSchema, WatchlistIdSchema, NotificationIdSchema } from './notifications.schemas';
 
 const router = Router();
+
+router.use(authMiddleware);
 
 // ─── Watchlist ──────────────────────────────────────────────────────────────
 

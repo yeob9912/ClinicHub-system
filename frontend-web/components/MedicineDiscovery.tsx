@@ -16,7 +16,7 @@ import {
 import MedicineCard from "./MedicineCard";
 import { useAppContext } from "./providers";
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000/api/v1";
+const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001/api/v1";
 
 function getMedicineImage(name: string) {
   const n = (name ?? "").toLowerCase();

@@ -7,7 +7,7 @@ import Link from "next/link";
 import { useAppContext } from "./providers";
 import PharmacyCard from "./PharmacyCard";
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000/api/v1";
+const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001/api/v1";
 
 function normalisePharmacy(p: any) {
   const resolveImage = () => {

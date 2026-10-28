@@ -173,7 +173,7 @@ export function createApp(): Application {
   app.use('/api/v1/medicines', medicinesRouter);
 
   // Watchlist & Notifications — require JWT (router mounts both /watchlist and /notifications)
-  app.use('/api/v1', authMiddleware, notificationsRouter);
+  app.use('/api/v1', notificationsRouter);
 
   // Orders — require JWT
   app.use('/api/v1/orders', authMiddleware, ordersRouter);

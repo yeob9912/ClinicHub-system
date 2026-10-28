@@ -1,4 +1,4 @@
-import mongoose, { Document, Schema } from 'mongoose';
+import mongoose, { Document, Schema, Model } from 'mongoose';
 
 export interface IMailSandbox extends Document {
   to: string;
@@ -23,5 +23,5 @@ const mailSandboxSchema = new Schema<IMailSandbox>(
 
 mailSandboxSchema.index({ created_at: -1 });
 
-export const MailSandboxModel =
-  mongoose.models.MailSandbox || mongoose.model<IMailSandbox>('MailSandbox', mailSandboxSchema);
+export const MailSandboxModel: Model<IMailSandbox> =
+  (mongoose.models.MailSandbox as Model<IMailSandbox>) || mongoose.model<IMailSandbox>('MailSandbox', mailSandboxSchema);

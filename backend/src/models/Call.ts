@@ -1,4 +1,4 @@
-import mongoose, { Document, Schema } from 'mongoose';
+import mongoose, { Document, Schema, Model } from 'mongoose';
 
 export type CallStatus = 'ringing' | 'accepted' | 'rejected' | 'ended' | 'missed';
 export type CallType   = 'video' | 'audio';
@@ -36,5 +36,5 @@ const callSchema = new Schema<ICall>(
 callSchema.index({ caller_id: 1, status: 1 });
 callSchema.index({ recipient_id: 1, status: 1 });
 
-export const CallModel =
-  mongoose.models.Call || mongoose.model<ICall>('Call', callSchema);
+export const CallModel: Model<ICall> =
+  (mongoose.models.Call as Model<ICall>) || mongoose.model<ICall>('Call', callSchema);

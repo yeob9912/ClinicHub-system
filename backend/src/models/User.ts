@@ -1,4 +1,4 @@
-import mongoose, { Document, Schema } from 'mongoose';
+import mongoose, { Document, Schema, Model } from 'mongoose';
 
 export type UserRole = 'patient' | 'pharmacy_staff' | 'admin';
 
@@ -74,4 +74,5 @@ export function toPublicUser(user: IUser) {
   };
 }
 
-export const UserModel = mongoose.models.User || mongoose.model<IUser>('User', userSchema);
+export const UserModel: Model<IUser> =
+  (mongoose.models.User as Model<IUser>) || mongoose.model<IUser>('User', userSchema);

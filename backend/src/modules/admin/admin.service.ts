@@ -424,7 +424,7 @@ export class AdminService {
     };
   }
 
-  async getActivity(params: { type?: string; page?: number | string; limit?: number | string }) {
+  async getActivity(params: { type?: string; page?: number | string; limit?: number | string; days?: number | string }) {
     const { type } = params;
     const { page, limit } = parsePagination(params.page, params.limit, 100);
     const fetchLimit = Math.min(limit * 4, 200);

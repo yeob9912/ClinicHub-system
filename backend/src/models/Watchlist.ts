@@ -1,4 +1,4 @@
-import mongoose, { Document, Schema } from 'mongoose';
+import mongoose, { Document, Schema, Model } from 'mongoose';
 
 export interface IWatchlist extends Document {
   user_id: mongoose.Types.ObjectId;
@@ -29,5 +29,5 @@ const watchlistSchema = new Schema<IWatchlist>(
 // Prevent duplicate watchlist entries (user+medicine+pharmacy combo)
 watchlistSchema.index({ user_id: 1, medicine_id: 1, pharmacy_id: 1 }, { unique: true });
 
-export const WatchlistModel =
-  mongoose.models.Watchlist || mongoose.model<IWatchlist>('Watchlist', watchlistSchema);
+export const WatchlistModel: Model<IWatchlist> =
+  (mongoose.models.Watchlist as Model<IWatchlist>) || mongoose.model<IWatchlist>('Watchlist', watchlistSchema);

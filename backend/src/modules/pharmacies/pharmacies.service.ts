@@ -156,7 +156,7 @@ export class PharmaciesService {
         );
       }
     } catch (notifErr) {
-      logger.warn('Failed to notify admins of new pharmacy registration', notifErr);
+      logger.warn({ notifErr }, 'Failed to notify admins of new pharmacy registration');
     }
 
     logger.info(`New pharmacy ${pharmacy._id} created by user ${userId}`);
@@ -378,6 +378,7 @@ export class PharmaciesService {
       }
       if (updates.staff_settings?.preferences?.notifications !== undefined && user.preferences?.notifications !== updates.staff_settings.preferences.notifications) {
         user.preferences = {
+          default_radius_km: user.preferences?.default_radius_km ?? 10,
           ...(user.preferences || {}),
           notifications: updates.staff_settings.preferences.notifications,
         };
@@ -450,7 +451,7 @@ export class PharmaciesService {
         );
       }
     } catch (err) {
-      logger.warn('Failed to broadcast announcement notification', err);
+      logger.warn({ err }, 'Failed to broadcast announcement notification');
     }
 
     return newAnnouncement;
@@ -562,7 +563,7 @@ export class PharmaciesService {
         data: { pharmacy_id: resolvedId, rating: newRating, new_average: newAverage },
       });
     } catch (notifErr) {
-      logger.warn('Failed to create rating notification', notifErr);
+      logger.warn({ notifErr }, 'Failed to create rating notification');
     }
 
     logger.info(`Pharmacy ${resolvedId} rated ${newRating} stars by user ${userId}. New avg: ${newAverage}`);

@@ -26,7 +26,7 @@ import {
 import Image from "next/image";
 import { AnimatePresence, motion } from "framer-motion";
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000/api/v1";
+const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001/api/v1";
 
 function getAuthHeader(): Record<string, string> {
   if (typeof window === "undefined") return {};

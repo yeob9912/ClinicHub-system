@@ -247,7 +247,7 @@ export class MedicinesService {
     };
   }
 
-  async getCategories() {
+  async getCategories(_includeCount?: boolean) {
     const categories = await Medicine.distinct('category');
     return categories.map((cat: string) => ({ name: cat, is_active: true }));
   }

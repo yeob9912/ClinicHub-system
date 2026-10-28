@@ -1,4 +1,4 @@
-import mongoose, { Document, Schema } from 'mongoose';
+import mongoose, { Document, Schema, Model } from 'mongoose';
 
 export interface ISale extends Document {
   pharmacy_id: mongoose.Types.ObjectId;
@@ -30,5 +30,5 @@ const saleSchema = new Schema<ISale>(
 
 saleSchema.index({ pharmacy_id: 1, created_at: -1 });
 
-export const SaleModel =
-  mongoose.models.Sale || mongoose.model<ISale>('Sale', saleSchema);
+export const SaleModel: Model<ISale> =
+  (mongoose.models.Sale as Model<ISale>) || mongoose.model<ISale>('Sale', saleSchema);

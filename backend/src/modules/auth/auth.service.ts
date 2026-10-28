@@ -280,7 +280,7 @@ export class AuthService {
     return { message: 'Password updated successfully. You can now log in.' };
   }
 
-  async sendOtp(_phone: string) {
+  async sendOtp(_phone: string): Promise<{ message: string }> {
     throw Object.assign(new Error('Phone OTP is not enabled'), {
       statusCode: 400,
       code: 'NOT_SUPPORTED',
@@ -336,10 +336,14 @@ export class AuthService {
     const tokenData = (await tokenRes.json()) as {
       access_token?: string;
       error?: string;
+      error_description?: string;
     };
 
     if (!tokenRes.ok || !tokenData.access_token) {
-      throw Object.assign(new Error(tokenData.error || 'Google token exchange failed'), {
+      const errorMsg = tokenData.error_description
+        ? `${tokenData.error}: ${tokenData.error_description}`
+        : tokenData.error || 'Google token exchange failed';
+      throw Object.assign(new Error(errorMsg), {
         statusCode: 400,
         code: 'GOOGLE_AUTH_FAILED',
       });

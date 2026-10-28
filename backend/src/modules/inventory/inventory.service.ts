@@ -38,6 +38,7 @@ export class InventoryService {
     params: {
       in_stock?: string;
       low_stock?: string;
+      category_id?: string;
       search?: string;
       sort?: string;
       order?: string;
@@ -248,7 +249,7 @@ export class InventoryService {
           );
         }
       } catch (err) {
-        logger.warn('Failed to notify admins of inventory increase', err);
+        logger.warn({ err }, 'Failed to notify admins of inventory increase');
       }
     }
 
@@ -319,7 +320,7 @@ export class InventoryService {
                 );
               }
             } catch (err) {
-              logger.warn('Failed to notify admins of bulk inventory increase', err);
+              logger.warn({ err }, 'Failed to notify admins of bulk inventory increase');
             }
           }
         } else {

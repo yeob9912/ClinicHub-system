@@ -40,7 +40,7 @@ export class ComplaintsService {
         await NotificationModel.insertMany(notifications);
       }
     } catch (err) {
-      logger.warn('Failed to notify admins of new complaint', err);
+      logger.warn({ err }, 'Failed to notify admins of new complaint');
     }
 
     logger.info(`Complaint ${complaint._id} submitted by user ${userId}`);
@@ -143,7 +143,7 @@ export class ComplaintsService {
           is_read: false,
         });
       } catch (err) {
-        logger.warn('Failed to notify user of priority assignment', err);
+        logger.warn({ err }, 'Failed to notify user of priority assignment');
       }
     }
 
@@ -162,7 +162,7 @@ export class ComplaintsService {
         is_read: false,
       });
     } catch (err) {
-      logger.warn('Failed to notify user of complaint update', err);
+      logger.warn({ err }, 'Failed to notify user of complaint update');
     }
 
     logger.info(`Complaint ${complaintId} updated by admin ${adminId} → status: ${complaint.status}, priority: ${complaint.priority}`);

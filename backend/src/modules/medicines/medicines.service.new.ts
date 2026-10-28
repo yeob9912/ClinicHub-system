@@ -26,7 +26,7 @@ MedicineSchema.index({ name: 'text', generic_name: 'text', brand_names: 'text', 
 MedicineSchema.index({ category: 1 });
 MedicineSchema.index({ requires_rx: 1 });
 
-const Medicine = mongoose.models.Medicine || mongoose.model('Medicine', MedicineSchema);
+const Medicine: any = mongoose.models.Medicine || mongoose.model('Medicine', MedicineSchema);
 
 export class MedicinesService {
   async search(params: {

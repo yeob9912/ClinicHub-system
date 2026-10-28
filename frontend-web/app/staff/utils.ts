@@ -1,4 +1,4 @@
-export const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000/api/v1";
+export const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001/api/v1";
 
 export function getAuthHeader(): Record<string, string> {
   if (typeof window === "undefined") return {};

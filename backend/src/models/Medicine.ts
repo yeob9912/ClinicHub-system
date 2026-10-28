@@ -1,4 +1,4 @@
-import mongoose, { Document, Schema } from 'mongoose';
+import mongoose, { Document, Schema, Model } from 'mongoose';
 
 export interface IMedicine extends Document {
   name: string;
@@ -53,5 +53,5 @@ medicineSchema.index({ category: 1 });
 medicineSchema.index({ requires_rx: 1 });
 medicineSchema.index({ is_active: 1 });
 
-export const MedicineModel =
-  mongoose.models.Medicine || mongoose.model<IMedicine>('Medicine', medicineSchema);
+export const MedicineModel: Model<IMedicine> =
+  (mongoose.models.Medicine as Model<IMedicine>) || mongoose.model<IMedicine>('Medicine', medicineSchema);
