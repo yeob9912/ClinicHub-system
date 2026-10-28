@@ -25,9 +25,11 @@ function AuthCallbackContent() {
       try {
         const path = await establishSession(access, refresh);
         router.replace(path);
-      } catch {
+      } catch (err: unknown) {
+        console.error("AuthCallback error establishing session:", err);
+        const msg = err instanceof Error ? err.message : "Could not load your profile";
         setMessage("Sign-in failed. Redirecting…");
-        router.replace("/login?error=Could+not+load+your+profile");
+        router.replace(`/login?error=${encodeURIComponent(msg)}`);
       }
     };
 

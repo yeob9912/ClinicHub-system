@@ -1,10 +1,21 @@
 import { clearTokens, getAccessToken, getRefreshToken, setTokens } from "./auth-storage";
 
+function getInitialBaseUrl(): string {
+  if (process.env.NEXT_PUBLIC_API_URL) {
+    return process.env.NEXT_PUBLIC_API_URL;
+  }
+  if (
+    typeof window !== "undefined" &&
+    window.location.hostname !== "localhost" &&
+    window.location.hostname !== "127.0.0.1"
+  ) {
+    return "https://clinichub-system.onrender.com/api/v1";
+  }
+  return "http://localhost:3001/api/v1";
+}
+
 // Strip trailing /api/v1 (or /api/vN) so paths like /api/v1/users/me don't get doubled.
-// NEXT_PUBLIC_API_URL may be "http://localhost:3001/api/v1" or just "http://localhost:3001".
-export const API_BASE_URL = (
-  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001/api/v1"
-)
+export const API_BASE_URL = getInitialBaseUrl()
   .replace(/\/api\/v\d+\/?$/, "")
   .replace(/\/$/, "") || "http://localhost:3001";
 

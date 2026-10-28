@@ -51,13 +51,18 @@ export function createApp(): Application {
     })
   );
 
-  // ─── CORS ─────────────────────────────────────────────────────────────────
   const allowedOrigins = env.CORS_ORIGIN.split(',').map((o) => o.trim());
   app.use(
     cors({
       origin: (origin, callback) => {
         if (!origin) return callback(null, true); // allow non-browser (Postman, curl)
-        if (allowedOrigins.includes(origin) || allowedOrigins.includes('*')) {
+        const isAllowed =
+          allowedOrigins.includes(origin) ||
+          allowedOrigins.includes('*') ||
+          origin.endsWith('.vercel.app') ||
+          /^https?:\/\/localhost(:\d+)?$/.test(origin) ||
+          /^https?:\/\/127\.0\.0\.1(:\d+)?$/.test(origin);
+        if (isAllowed) {
           return callback(null, true);
         }
         callback(new Error(`CORS policy blocked origin: ${origin}`));
