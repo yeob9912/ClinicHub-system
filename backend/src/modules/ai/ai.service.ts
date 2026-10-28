@@ -161,7 +161,7 @@ function getSystemPrompt(role: AiRole, pharmacyId?: string): string {
 You ONLY answer questions related to ClinicHub and its features: pharmacy search, medicine availability, inventory management, and system analytics.
 For unrelated questions, politely decline and guide the user back to supported ClinicHub features.
 Never invent data. If you cannot verify something, say so clearly.
-Keep responses concise, friendly, and professional.`;
+Be fast, direct, and concise. Format answers in short bullet points. Avoid unnecessary conversational filler.`;
 
   if (role === 'patient') {
     return `${base}
@@ -328,10 +328,14 @@ async function runChatWithModel(
     model: modelName,
     systemInstruction: getSystemPrompt(role, pharmacyId),
     tools: [{ functionDeclarations: tools as any }],
+    generationConfig: {
+      maxOutputTokens: 600,
+      temperature: 0.2,
+    },
   });
 
-  // Build history for multi-turn conversation
-  const chatHistory = history.map(msg => ({
+  // Build history for multi-turn conversation — last 6 messages for speed
+  const chatHistory = history.slice(-6).map(msg => ({
     role: msg.role,
     parts: [{ text: msg.parts }],
   }));
@@ -341,9 +345,9 @@ async function runChatWithModel(
   let response: GenerateContentResult = await chat.sendMessage(message);
   let result = response.response;
 
-  // Agentic tool call loop (max 5 rounds)
+  // Agentic tool call loop (max 2 rounds for fast response)
   let rounds = 0;
-  while (rounds < 5) {
+  while (rounds < 2) {
     const functionCalls = result.functionCalls();
     if (!functionCalls || functionCalls.length === 0) break;
 
@@ -388,15 +392,15 @@ export async function handleAiChat(
   }
 
   const genAI = new GoogleGenerativeAI(env.GEMINI_API_KEY);
-  const primaryModel = env.GEMINI_MODEL || 'gemini-3.8-flash';
+  const primaryModel = env.GEMINI_MODEL || 'gemini-2.5-flash';
   const fallbackModel = 'gemini-2.5-flash';
 
   try {
     return await runChatWithModel(genAI, primaryModel, role, message, history, pharmacyId);
   } catch (err: any) {
-    // If primary model experiences a 503 high-demand spike or 404, fallback transparently
-    if (primaryModel !== fallbackModel && (err?.status === 503 || err?.status === 404)) {
-      console.warn(`[AI] Model ${primaryModel} returned ${err.status}. Falling back to ${fallbackModel}`);
+    // If the configured model has fetch failed, 503 spike, or 404, fallback to gemini-2.5-flash
+    if (primaryModel !== fallbackModel) {
+      console.warn(`[AI] Primary model ${primaryModel} failed (${err?.message || err?.status}), falling back to ${fallbackModel}`);
       return await runChatWithModel(genAI, fallbackModel, role, message, history, pharmacyId);
     }
     throw err;

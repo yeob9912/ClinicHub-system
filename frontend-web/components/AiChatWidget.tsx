@@ -120,7 +120,8 @@ export default function AiChatWidget() {
             ? localStorage.getItem("medpay_access_token")
             : null;
 
-        const history = messages.map(({ role, parts }) => ({ role, parts }));
+        // Send only recent context for fast prompt processing
+        const history = messages.slice(-6).map(({ role, parts }) => ({ role, parts }));
 
         const res = await fetch(`${getApiBaseUrl()}/api/v1/ai/chat`, {
           method: "POST",
