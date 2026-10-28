@@ -785,7 +785,7 @@ export async function handleAiChat(
   const genAI = new GoogleGenerativeAI(env.GEMINI_API_KEY);
   const modelName = env.GEMINI_MODEL || 'gemini-3.8-flash';
 
-  // Attempt with gemini-3.8-flash, with 1 retry on temporary 503 spikes
+  // Attempt with gemini-3.8-flash, with 1 retry on temporary 503 spikes or network drops (fetch failed)
   let lastError: any;
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
@@ -797,16 +797,31 @@ export async function handleAiChat(
     } catch (err: any) {
       lastError = err;
       const is503 = err?.status === 503 || err?.message?.includes('503') || err?.message?.includes('UNAVAILABLE');
-      if (!is503) {
+      const isFetchFailed = err?.message?.includes('fetch failed');
+      const isRetryable = is503 || isFetchFailed;
+
+      if (!isRetryable) {
         throw err;
       }
-      console.warn(`[AI] Attempt ${attempt + 1} for ${modelName} encountered 503 capacity spike. Retrying...`);
+      console.warn(
+        `[AI] Attempt ${attempt + 1} for ${modelName} encountered ${
+          isFetchFailed ? 'network drop (fetch failed)' : '503 capacity spike'
+        }. Retrying...`
+      );
     }
   }
 
-  // If Google still has a 503 capacity spike after retry, return clear guidance
+  // Gracefully handle specific API errors instead of crashing with 500
+  if (lastError?.message?.includes('fetch failed')) {
+    return 'A temporary network connection issue occurred while contacting Google Gemini servers. Please try sending your message again.';
+  }
+
   if (lastError?.status === 503 || lastError?.message?.includes('503') || lastError?.message?.includes('UNAVAILABLE')) {
     return "Google's servers are currently experiencing temporary high demand for gemini-3.8-flash. Please send your question again in a moment.";
+  }
+
+  if (lastError?.status === 429 || lastError?.message?.includes('429') || lastError?.message?.includes('quota')) {
+    return 'The Gemini daily API request limit for this project has been reached. Please check your Google AI Studio plan or try again later.';
   }
 
   throw lastError;
