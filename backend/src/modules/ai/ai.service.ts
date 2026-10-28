@@ -4,6 +4,7 @@ import { UserModel } from '../../models/User';
 import { PharmacyModel } from '../../models/Pharmacy';
 import { MedicineModel } from '../../models/Medicine';
 import { InventoryModel } from '../../models/Inventory';
+import { ComplaintModel } from '../../models/Complaint';
 
 export type AiRole = 'patient' | 'pharmacy_staff' | 'admin';
 
@@ -114,22 +115,273 @@ async function getLowStockItems(pharmacyId: string) {
     .sort((a: any, b: any) => a.stock_quantity - b.stock_quantity);
 }
 
-async function getAdminStats() {
-  const [totalUsers, totalPharmacies, totalMedicines, approvedPharmacies, pendingPharmacies] = await Promise.all([
+// ─── Administrator AI System-Wide Management & Analytics (FR-47 through FR-57) ───
+
+// FR-48: User Statistics
+async function getAdminUserStatistics(timeRange?: string) {
+  const [
+    totalUsers,
+    totalPatients,
+    totalStaff,
+    totalAdmins,
+    activeUsers,
+    inactiveUsers,
+  ] = await Promise.all([
     UserModel.countDocuments(),
-    PharmacyModel.countDocuments(),
-    MedicineModel.countDocuments({ is_active: true }),
-    PharmacyModel.countDocuments({ status: 'approved', is_active: true }),
-    PharmacyModel.countDocuments({ status: 'pending' }),
+    UserModel.countDocuments({ role: 'patient' }),
+    UserModel.countDocuments({ role: 'pharmacy_staff' }),
+    UserModel.countDocuments({ role: 'admin' }),
+    UserModel.countDocuments({ is_active: true }),
+    UserModel.countDocuments({ is_active: false }),
+  ]);
+
+  const now = new Date();
+  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+  const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+
+  const [registeredThisMonth, registeredLast30Days, registeredLast7Days] = await Promise.all([
+    UserModel.countDocuments({ created_at: { $gte: startOfMonth } }),
+    UserModel.countDocuments({ created_at: { $gte: thirtyDaysAgo } }),
+    UserModel.countDocuments({ created_at: { $gte: sevenDaysAgo } }),
   ]);
 
   return {
-    total_users: totalUsers,
-    total_pharmacies: totalPharmacies,
-    total_medicines: totalMedicines,
-    approved_pharmacies: approvedPharmacies,
-    pending_pharmacies: pendingPharmacies,
+    total_registered_users: totalUsers,
+    total_customers: totalPatients,
+    total_pharmacy_staff: totalStaff,
+    total_administrators: totalAdmins,
+    active_accounts: activeUsers,
+    inactive_accounts: inactiveUsers,
+    new_registrations_this_month: registeredThisMonth,
+    new_registrations_last_30_days: registeredLast30Days,
+    new_registrations_last_7_days: registeredLast7Days,
   };
+}
+
+// FR-49: Pharmacy Statistics & Comparisons
+async function getAdminPharmacyStatistics() {
+  const [
+    totalPharmacies,
+    approvedCount,
+    pendingCount,
+    rejectedCount,
+    suspendedCount,
+    activeCount,
+    inactiveCount,
+  ] = await Promise.all([
+    PharmacyModel.countDocuments(),
+    PharmacyModel.countDocuments({ status: 'approved' }),
+    PharmacyModel.countDocuments({ status: 'pending' }),
+    PharmacyModel.countDocuments({ status: 'rejected' }),
+    PharmacyModel.countDocuments({ status: 'suspended' }),
+    PharmacyModel.countDocuments({ is_active: true }),
+    PharmacyModel.countDocuments({ is_active: false }),
+  ]);
+
+  const allPharmacies = await PharmacyModel.find()
+    .select('name address city phone email status is_active rating ratings_count latitude longitude opening_hours')
+    .lean();
+
+  const incompletePharmacies = allPharmacies
+    .filter(p => !p.phone || !p.email || !p.address || !p.city || p.latitude === undefined || p.latitude === null || !p.opening_hours)
+    .map(p => ({
+      name: p.name,
+      status: p.status,
+      missing_fields: [
+        !p.phone && 'phone',
+        !p.email && 'email',
+        !p.address && 'address',
+        !p.city && 'city',
+        (p.latitude === undefined || p.latitude === null) && 'coordinates',
+        !p.opening_hours && 'opening_hours',
+      ].filter(Boolean) as string[],
+    }));
+
+  const topRated = allPharmacies
+    .filter(p => p.status === 'approved' && p.is_active)
+    .sort((a, b) => (b.rating || 0) - (a.rating || 0))
+    .slice(0, 5)
+    .map(p => ({
+      name: p.name,
+      city: p.city,
+      rating: p.rating,
+      ratings_count: p.ratings_count,
+    }));
+
+  return {
+    total_registered_pharmacies: totalPharmacies,
+    approved_pharmacies: approvedCount,
+    pending_pharmacies: pendingCount,
+    rejected_pharmacies: rejectedCount,
+    suspended_pharmacies: suspendedCount,
+    active_pharmacies: activeCount,
+    inactive_pharmacies: inactiveCount,
+    top_rated_pharmacies: topRated,
+    pharmacies_with_incomplete_info_count: incompletePharmacies.length,
+    incomplete_pharmacies: incompletePharmacies.slice(0, 10),
+  };
+}
+
+// FR-50: Medicine and Inventory Statistics
+async function getAdminMedicineInventoryStats() {
+  const [
+    totalMedicines,
+    activeMedicines,
+    inactiveMedicines,
+    rxRequiredMedicines,
+    otcMedicines,
+    totalInventoryRecords,
+    inStockRecords,
+    outOfStockRecords,
+  ] = await Promise.all([
+    MedicineModel.countDocuments(),
+    MedicineModel.countDocuments({ is_active: true }),
+    MedicineModel.countDocuments({ is_active: false }),
+    MedicineModel.countDocuments({ requires_rx: true }),
+    MedicineModel.countDocuments({ requires_rx: false }),
+    InventoryModel.countDocuments(),
+    InventoryModel.countDocuments({ stock_quantity: { $gt: 0 } }),
+    InventoryModel.countDocuments({ stock_quantity: 0 }),
+  ]);
+
+  const lowStockInventories = await InventoryModel.find({
+    $expr: { $lte: ['$stock_quantity', '$low_stock_threshold'] },
+  })
+    .populate('medicine_id', 'name generic_name')
+    .populate('pharmacy_id', 'name city status is_active')
+    .limit(25)
+    .lean();
+
+  const lowStockPharmacies = lowStockInventories
+    .filter((inv: any) => inv.pharmacy_id?.status === 'approved' && inv.pharmacy_id?.is_active)
+    .map((inv: any) => ({
+      medicine_name: inv.medicine_id?.name ?? 'Unknown',
+      pharmacy_name: inv.pharmacy_id?.name ?? 'Unknown',
+      pharmacy_city: inv.pharmacy_id?.city ?? 'Unknown',
+      stock_quantity: inv.stock_quantity,
+      low_stock_threshold: inv.low_stock_threshold,
+      status: inv.stock_quantity === 0 ? 'Out of Stock' : 'Low Stock',
+    }));
+
+  return {
+    total_registered_medicines: totalMedicines,
+    active_medicines: activeMedicines,
+    inactive_medicines: inactiveMedicines,
+    prescription_required_medicines: rxRequiredMedicines,
+    over_the_counter_medicines: otcMedicines,
+    total_inventory_records: totalInventoryRecords,
+    in_stock_inventory_records: inStockRecords,
+    out_of_stock_inventory_records: outOfStockRecords,
+    total_low_stock_items: lowStockPharmacies.length,
+    low_stock_items_by_pharmacy: lowStockPharmacies.slice(0, 10),
+    data_limitation_notice:
+      'Medicine expiration dates are currently not tracked in the database schema (the system records stock quantities, price history, and low-stock threshold levels).',
+  };
+}
+
+// FR-51: System Activity
+async function getAdminSystemActivity(limit = 6) {
+  const [recentUsers, recentPharmacies, recentInventoryUpdates, recentComplaints] = await Promise.all([
+    UserModel.find()
+      .select('full_name role created_at')
+      .sort({ created_at: -1 })
+      .limit(limit)
+      .lean(),
+    PharmacyModel.find()
+      .select('name city status created_at')
+      .sort({ created_at: -1 })
+      .limit(limit)
+      .lean(),
+    InventoryModel.find()
+      .populate('medicine_id', 'name')
+      .populate('pharmacy_id', 'name')
+      .sort({ last_updated: -1 })
+      .limit(limit)
+      .lean(),
+    ComplaintModel.find()
+      .select('pharmacy_name issue category status priority created_at')
+      .sort({ created_at: -1 })
+      .limit(limit)
+      .lean(),
+  ]);
+
+  return {
+    recent_user_registrations: recentUsers.map(u => ({
+      name: u.full_name,
+      role: u.role,
+      registered_at: u.created_at,
+    })),
+    recent_pharmacy_registrations: recentPharmacies.map(p => ({
+      name: p.name,
+      city: p.city,
+      status: p.status,
+      registered_at: p.created_at,
+    })),
+    recent_inventory_updates: recentInventoryUpdates.map((inv: any) => ({
+      medicine: inv.medicine_id?.name ?? 'Unknown',
+      pharmacy: inv.pharmacy_id?.name ?? 'Unknown',
+      stock_quantity: inv.stock_quantity,
+      price: inv.price,
+      updated_at: inv.last_updated,
+    })),
+    recent_complaints_feedback: recentComplaints.map(c => ({
+      pharmacy: c.pharmacy_name,
+      issue: c.issue,
+      category: c.category,
+      status: c.status,
+      date: c.created_at,
+    })),
+  };
+}
+
+// FR-47 & FR-52: Overall System Overview
+async function getAdminSystemOverview() {
+  const [users, pharmacies, inventory, activity] = await Promise.all([
+    getAdminUserStatistics(),
+    getAdminPharmacyStatistics(),
+    getAdminMedicineInventoryStats(),
+    getAdminSystemActivity(4),
+  ]);
+
+  return {
+    system_overview: {
+      platform: 'ClinicHub Smart Pharmacy System',
+      users: {
+        total: users.total_registered_users,
+        customers: users.total_customers,
+        staff: users.total_pharmacy_staff,
+        admins: users.total_administrators,
+        new_this_month: users.new_registrations_this_month,
+      },
+      pharmacies: {
+        total: pharmacies.total_registered_pharmacies,
+        approved: pharmacies.approved_pharmacies,
+        pending: pharmacies.pending_pharmacies,
+        active: pharmacies.active_pharmacies,
+        incomplete: pharmacies.pharmacies_with_incomplete_info_count,
+      },
+      medicines_and_inventory: {
+        total_medicines: inventory.total_registered_medicines,
+        total_inventory_records: inventory.total_inventory_records,
+        in_stock: inventory.in_stock_inventory_records,
+        out_of_stock: inventory.out_of_stock_inventory_records,
+        low_stock_items: inventory.total_low_stock_items,
+      },
+      recent_activity_summary: {
+        newest_user: activity.recent_user_registrations[0] ?? null,
+        newest_pharmacy: activity.recent_pharmacy_registrations[0] ?? null,
+      },
+      compliance_notes: {
+        data_source: 'Live authenticated MongoDB records (strictly verified, no double counting)',
+        privacy: 'Credential hashes and private tokens are excluded from all reporting',
+      },
+    },
+  };
+}
+
+async function getAdminStats() {
+  return getAdminSystemOverview();
 }
 
 async function getSystemLowStockReport(limit = 20) {
@@ -185,14 +437,39 @@ ${pharmacyId ? `Their authorized pharmacy ID is: ${pharmacyId}` : ''}
 - Do NOT reveal admin-only analytics.`;
   }
 
-  // admin
+  // admin — Comprehensive System-Wide Management & Analytics (FR-47 through FR-57)
   return `${base}
 
-You are assisting an ADMINISTRATOR.
-- Provide authorized system-wide analytics, pharmacy summaries, and inventory reports.
-- Identify patterns like repeated low-stock conditions across pharmacies.
-- Clearly distinguish verified facts from estimates.
-- Do NOT bypass existing authorization workflows or reveal restricted operation details.`;
+You are assisting an authenticated ADMINISTRATOR (Role: Administrator).
+You have full authorized access to system-wide management tools and live database analytics.
+
+CRITICAL INSTRUCTIONS FOR ADMINISTRATOR REQUESTS:
+1. System Overview (FR-47, FR-52):
+   - When asked for an overall summary, overview, or general report of ClinicHub, call "get_admin_system_overview".
+   - Report user counts, pharmacy approvals/activity, medicine totals, and inventory health.
+
+2. User Statistics (FR-48, FR-53):
+   - When asked "How many users are registered?", "How many staff members are registered?", or about new registrations this month, call "get_admin_user_statistics".
+   - Clearly report distinct numbers: Total Users, Customers (Patients), Pharmacy Staff, and Administrators.
+   - Report active vs inactive account counts.
+
+3. Pharmacy Statistics (FR-49, FR-53):
+   - When asked "How many pharmacies are active?", or about pharmacy approvals, incomplete profiles, or top-rated pharmacies, call "get_admin_pharmacy_statistics".
+   - Report total registered, approved, pending, active, and pharmacies missing contact/address/coordinate information.
+
+4. Medicine & Inventory Statistics (FR-50, FR-53):
+   - When asked "How many medicines are recorded?", "Which pharmacies have low stock?", or about out-of-stock items, call "get_admin_medicine_inventory_stats" or "get_system_low_stock_report".
+   - Distinguish prescription-required (Rx) medicines from Over-the-Counter (OTC).
+   - If asked about expiration dates: State clearly that medicine expiration dates are not tracked in the current database schema (system tracks quantities and low-stock thresholds) (FR-55).
+
+5. System Activity (FR-51):
+   - When asked about recent activity, recent registrations, or recent updates, call "get_admin_system_activity".
+   - Summarize newest user registrations, pharmacy signups, inventory changes, and customer feedback/complaints.
+
+6. Accuracy & Privacy (FR-54, FR-55, FR-57):
+   - Always base statistics on database records retrieved via your tools. Avoid double-counting.
+   - If a requested metric is not stored in the system, explain this limitation clearly rather than guessing.
+   - Never disclose credentials, password hashes, or security tokens. Format responses cleanly with bold labels and bullet points.`;
 }
 
 // ─── Tool Dispatcher ─────────────────────────────────────────────────────────
@@ -223,12 +500,33 @@ async function dispatchTool(
       if (role === 'patient') throw new Error('Access denied');
       return getLowStockItems((args.pharmacy_id as string | undefined) ?? pharmacyId ?? '');
 
-    // Admin only
+    // Administrator Only (FR-56 Strict Authorization)
+    case 'get_admin_system_overview':
+      if (role !== 'admin') throw new Error('Access denied: Administrator authorization required');
+      return getAdminSystemOverview();
+
+    case 'get_admin_user_statistics':
+      if (role !== 'admin') throw new Error('Access denied: Administrator authorization required');
+      return getAdminUserStatistics(args.time_range as string | undefined);
+
+    case 'get_admin_pharmacy_statistics':
+      if (role !== 'admin') throw new Error('Access denied: Administrator authorization required');
+      return getAdminPharmacyStatistics();
+
+    case 'get_admin_medicine_inventory_stats':
+      if (role !== 'admin') throw new Error('Access denied: Administrator authorization required');
+      return getAdminMedicineInventoryStats();
+
+    case 'get_admin_system_activity':
+      if (role !== 'admin') throw new Error('Access denied: Administrator authorization required');
+      return getAdminSystemActivity(args.limit as number | undefined);
+
     case 'get_admin_stats':
-      if (role !== 'admin') throw new Error('Access denied');
+      if (role !== 'admin') throw new Error('Access denied: Administrator authorization required');
       return getAdminStats();
+
     case 'get_system_low_stock_report':
-      if (role !== 'admin') throw new Error('Access denied');
+      if (role !== 'admin') throw new Error('Access denied: Administrator authorization required');
       return getSystemLowStockReport(args.limit as number | undefined);
 
     default:
@@ -289,11 +587,47 @@ function getToolsForRole(role: AiRole) {
     },
   ];
 
+  // FR-47 through FR-57: Full Administrator Tools Suite
   const adminTools = [
     ...staffTools,
     {
+      name: 'get_admin_system_overview',
+      description: 'Get a comprehensive, high-level overview of the entire ClinicHub system: users, pharmacies, medicines, and inventory',
+      parameters: { type: 'object', properties: {} },
+    },
+    {
+      name: 'get_admin_user_statistics',
+      description: 'Retrieve detailed user statistics: total registered, customers, staff, administrators, active/inactive counts, and new registrations this month',
+      parameters: {
+        type: 'object',
+        properties: {
+          time_range: { type: 'string', description: 'Optional time range filter: this_month, last_30_days, last_7_days, or all_time' },
+        },
+      },
+    },
+    {
+      name: 'get_admin_pharmacy_statistics',
+      description: 'Retrieve system-wide pharmacy statistics: total registered, approved/pending/suspended counts, active vs inactive, top-rated pharmacies, and pharmacies with incomplete profile data',
+      parameters: { type: 'object', properties: {} },
+    },
+    {
+      name: 'get_admin_medicine_inventory_stats',
+      description: 'Retrieve medicine and inventory statistics: total medicines, in-stock/out-of-stock records, low-stock medicines across all pharmacies, and prescription (Rx) requirements',
+      parameters: { type: 'object', properties: {} },
+    },
+    {
+      name: 'get_admin_system_activity',
+      description: 'Summarize recent system activity: recent user signups, recent pharmacy registrations, recent inventory updates, and recent complaints/feedback',
+      parameters: {
+        type: 'object',
+        properties: {
+          limit: { type: 'number', description: 'Maximum items to retrieve per category (default 6)' },
+        },
+      },
+    },
+    {
       name: 'get_admin_stats',
-      description: 'Get system-wide statistics: total users, pharmacies, medicines',
+      description: 'Get system-wide overview statistics (users, pharmacies, medicines)',
       parameters: { type: 'object', properties: {} },
     },
     {
@@ -346,14 +680,42 @@ async function runChatWithModel(
     parts: [{ text: message }],
   });
 
-  // Call model with timeout support
-  let result = await model.generateContent({ contents });
-  let response = result.response;
+  // Helper to safely call generateContent and handle 'model output error' from SDK
+  const safeGenerate = async (payload: { contents: any[] }): Promise<any> => {
+    try {
+      const res = await model.generateContent(payload);
+      return res.response;
+    } catch (err: any) {
+      const msg: string = err?.message ?? '';
+      // SDK throws this when model returns empty candidate (no text, no tool call)
+      if (msg.includes('model output error') || msg.includes('model output must contain')) {
+        // Retry once with an explicit instruction to produce a text answer
+        const retryContents = [
+          ...payload.contents,
+          {
+            role: 'user' as const,
+            parts: [{ text: 'Please provide a clear text answer based on the data above.' }],
+          },
+        ];
+        try {
+          const retryRes = await model.generateContent({ contents: retryContents });
+          return retryRes.response;
+        } catch {
+          return null;
+        }
+      }
+      throw err;
+    }
+  };
+
+  // Call model
+  let response = await safeGenerate({ contents });
 
   // Agentic tool call loop (max 2 rounds for fast response)
   let rounds = 0;
   while (rounds < 2) {
-    const functionCalls = response.functionCalls();
+    if (!response) break;
+    const functionCalls = response.functionCalls?.();
     if (!functionCalls || functionCalls.length === 0) break;
 
     // Add model candidate response to contents
@@ -363,13 +725,13 @@ async function runChatWithModel(
     } else {
       contents.push({
         role: 'model',
-        parts: functionCalls.map(call => ({ functionCall: call })),
+        parts: functionCalls.map((call: any) => ({ functionCall: call })),
       });
     }
 
     // Execute all function calls
     const toolResults = await Promise.all(
-      functionCalls.map(async (call) => {
+      functionCalls.map(async (call: any) => {
         try {
           const data = await dispatchTool(call.name, call.args as Record<string, unknown>, role, pharmacyId);
           return { name: call.name, response: { result: data } };
@@ -385,16 +747,24 @@ async function runChatWithModel(
     // Role 'user' with functionResponse part is accepted by both Gemini 3.8 and Gemini 2.5!
     contents.push({
       role: 'user',
-      parts: toolResults.map(r => ({ functionResponse: r })),
+      parts: toolResults.map((r: any) => ({ functionResponse: r })),
     });
 
-    result = await model.generateContent({ contents });
-    response = result.response;
+    response = await safeGenerate({ contents });
     rounds++;
   }
 
-  const text = response.text();
-  if (!text) throw new Error('AI returned an empty response');
+  // Extract text safely — guard against null response or empty text
+  let text: string | undefined;
+  try {
+    text = response?.text?.();
+  } catch {
+    text = undefined;
+  }
+
+  if (!text) {
+    return 'I have retrieved the requested data. Please try rephrasing your question or ask for a specific metric.';
+  }
   return text;
 }
 

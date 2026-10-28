@@ -11,7 +11,11 @@ import {
   Sparkles,
   User as UserIcon,
   MessageSquare,
-  RotateCcw,
+  Plus,
+  History,
+  Trash2,
+  ChevronLeft,
+  Clock,
 } from "lucide-react";
 import { useUser } from "@/context/UserContext";
 import { getApiBaseUrl } from "@/lib/api";
@@ -20,6 +24,51 @@ interface ChatMessage {
   role: "user" | "model";
   parts: string;
   id: string;
+}
+
+interface ChatSession {
+  id: string;
+  title: string;
+  messages: ChatMessage[];
+  createdAt: number;
+}
+
+const HISTORY_KEY = "clinichub_ai_history";
+const MAX_SESSIONS = 20;
+
+function loadSessions(): ChatSession[] {
+  try {
+    const raw = localStorage.getItem(HISTORY_KEY);
+    return raw ? (JSON.parse(raw) as ChatSession[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveSessions(sessions: ChatSession[]) {
+  try {
+    localStorage.setItem(HISTORY_KEY, JSON.stringify(sessions.slice(0, MAX_SESSIONS)));
+  } catch {
+    // storage full — ignore
+  }
+}
+
+function deriveTitle(messages: ChatMessage[]): string {
+  const first = messages.find((m) => m.role === "user");
+  if (!first) return "New conversation";
+  return first.parts.length > 52 ? first.parts.slice(0, 52) + "…" : first.parts;
+}
+
+function formatRelativeTime(ts: number): string {
+  const diff = Date.now() - ts;
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return "Just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  const days = Math.floor(hrs / 24);
+  if (days < 7) return `${days}d ago`;
+  return new Date(ts).toLocaleDateString();
 }
 
 // Frontend uses "user" / "pharmacy" / "admin" from mapBackendRole
@@ -85,10 +134,57 @@ export default function AiChatWidget() {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showHistory, setShowHistory] = useState(false);
+  const [sessions, setSessions] = useState<ChatSession[]>([]);
+  const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
-  // All hooks must come before any conditional returns
+  // Load sessions from localStorage on mount
+  useEffect(() => {
+    setSessions(loadSessions());
+  }, []);
+
+  // Auto-save session whenever messages change (only if there is an AI reply)
+  useEffect(() => {
+    if (messages.length === 0) return;
+    const hasAiReply = messages.some((m) => m.role === "model");
+    if (!hasAiReply) return;
+
+    setSessions((prev) => {
+      let updated: ChatSession[];
+      if (currentSessionId) {
+        updated = prev.map((s) =>
+          s.id === currentSessionId
+            ? { ...s, messages, title: deriveTitle(messages) }
+            : s
+        );
+        if (!updated.find((s) => s.id === currentSessionId)) {
+          const newSession: ChatSession = {
+            id: currentSessionId,
+            title: deriveTitle(messages),
+            messages,
+            createdAt: Date.now(),
+          };
+          updated = [newSession, ...prev];
+        }
+      } else {
+        const id = `session-${Date.now()}`;
+        setCurrentSessionId(id);
+        const newSession: ChatSession = {
+          id,
+          title: deriveTitle(messages),
+          messages,
+          createdAt: Date.now(),
+        };
+        updated = [newSession, ...prev];
+      }
+      saveSessions(updated);
+      return updated;
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [messages]);
+
   useEffect(() => {
     if (open) {
       setTimeout(() => inputRef.current?.focus(), 300);
@@ -98,6 +194,39 @@ export default function AiChatWidget() {
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, loading]);
+
+  const startNewChat = useCallback(() => {
+    setMessages([]);
+    setError(null);
+    setCurrentSessionId(null);
+    setShowHistory(false);
+    setTimeout(() => inputRef.current?.focus(), 200);
+  }, []);
+
+  const loadSession = useCallback((session: ChatSession) => {
+    setMessages(session.messages);
+    setCurrentSessionId(session.id);
+    setError(null);
+    setShowHistory(false);
+    setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
+  }, []);
+
+  const deleteSession = useCallback(
+    (id: string, e: React.MouseEvent) => {
+      e.stopPropagation();
+      setSessions((prev) => {
+        const updated = prev.filter((s) => s.id !== id);
+        saveSessions(updated);
+        return updated;
+      });
+      if (currentSessionId === id) {
+        setMessages([]);
+        setCurrentSessionId(null);
+        setError(null);
+      }
+    },
+    [currentSessionId]
+  );
 
   const sendMessage = useCallback(
     async (text: string) => {
@@ -162,10 +291,7 @@ export default function AiChatWidget() {
     }
   };
 
-  const clearChat = () => {
-    setMessages([]);
-    setError(null);
-  };
+
 
   // Do not render on login/signup/auth pages
   const isAuthPage =
@@ -316,25 +442,187 @@ export default function AiChatWidget() {
                     {roleLabel[userRole] ?? "User"}
                   </span>
                 )}
-                {user && messages.length > 0 && (
+
+                {/* New Chat button */}
+                {user && (
                   <button
-                    onClick={clearChat}
-                    className="text-slate-400 hover:text-white transition-colors p-1.5 rounded-lg hover:bg-white/10 active:scale-95"
-                    title="Clear conversation"
-                    aria-label="Clear chat"
+                    id="ai-new-chat-btn"
+                    onClick={startNewChat}
+                    className="flex items-center gap-1 text-[11px] px-2.5 py-1 rounded-lg font-medium text-indigo-300 hover:text-white hover:bg-indigo-500/30 border border-indigo-500/30 hover:border-indigo-400/50 transition-all active:scale-95 cursor-pointer"
+                    title="Start a new conversation"
+                    aria-label="New chat"
                   >
-                    <RotateCcw size={15} />
+                    <Plus size={12} />
+                    <span>New</span>
                   </button>
                 )}
+
+                {/* History button */}
+                {user && (
+                  <button
+                    id="ai-history-btn"
+                    onClick={() => setShowHistory((v) => !v)}
+                    className={`p-1.5 rounded-lg transition-all active:scale-95 cursor-pointer relative ${
+                      showHistory
+                        ? "bg-indigo-500/30 text-indigo-300"
+                        : "text-slate-400 hover:text-white hover:bg-white/10"
+                    }`}
+                    title="Chat history"
+                    aria-label="Show chat history"
+                  >
+                    <History size={15} />
+                    {sessions.length > 0 && !showHistory && (
+                      <span className="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-indigo-500 text-white text-[8px] font-bold flex items-center justify-center">
+                        {sessions.length > 9 ? "9+" : sessions.length}
+                      </span>
+                    )}
+                  </button>
+                )}
+
                 <button
                   onClick={() => setOpen(false)}
-                  className="text-slate-400 hover:text-white transition-colors p-1.5 rounded-lg hover:bg-white/10 active:scale-95"
+                  className="text-slate-400 hover:text-white transition-colors p-1.5 rounded-lg hover:bg-white/10 active:scale-95 cursor-pointer"
                   aria-label="Close AI chat"
                 >
                   <X size={17} />
                 </button>
               </div>
             </div>
+
+            {/* ── History Panel (slide-in overlay) ── */}
+            <AnimatePresence>
+              {showHistory && user && (
+                <motion.div
+                  key="history-panel"
+                  initial={{ x: "100%" }}
+                  animate={{ x: 0 }}
+                  exit={{ x: "100%" }}
+                  transition={{ type: "spring", stiffness: 320, damping: 30 }}
+                  className="absolute inset-0 flex flex-col overflow-hidden rounded-3xl"
+                  style={{
+                    zIndex: 10,
+                    background: "rgba(13, 15, 28, 0.98)",
+                    backdropFilter: "blur(24px)",
+                  }}
+                >
+                  {/* History header */}
+                  <div
+                    className="flex items-center gap-2.5 px-4 py-3.5 shrink-0"
+                    style={{ borderBottom: "1px solid rgba(99,102,241,0.2)" }}
+                  >
+                    <button
+                      onClick={() => setShowHistory(false)}
+                      className="text-slate-400 hover:text-white transition-colors p-1 rounded-lg hover:bg-white/10 active:scale-95 cursor-pointer shrink-0"
+                      aria-label="Back to chat"
+                    >
+                      <ChevronLeft size={18} />
+                    </button>
+                    <div className="flex items-center gap-2">
+                      <History size={15} className="text-indigo-400" />
+                      <span className="text-white font-semibold text-sm">Chat History</span>
+                    </div>
+                    {sessions.length > 0 && (
+                      <span className="ml-auto text-[11px] text-slate-400">
+                        {sessions.length} session{sessions.length !== 1 ? "s" : ""}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* History list */}
+                  <div className="flex-1 overflow-y-auto px-3 py-3 flex flex-col gap-2">
+                    {sessions.length === 0 ? (
+                      <div className="flex-1 flex flex-col items-center justify-center gap-3 text-center py-12">
+                        <div className="w-12 h-12 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center">
+                          <History size={22} className="text-indigo-400/60" />
+                        </div>
+                        <div>
+                          <p className="text-slate-300 text-sm font-medium">No history yet</p>
+                          <p className="text-slate-500 text-xs mt-1">Your conversations will appear here</p>
+                        </div>
+                        <button
+                          onClick={startNewChat}
+                          className="mt-2 flex items-center gap-1.5 text-xs px-4 py-2 rounded-xl font-medium text-white transition-all hover:scale-[1.02] active:scale-[0.98] cursor-pointer"
+                          style={{ background: "linear-gradient(135deg, #6366f1, #8b5cf6)" }}
+                        >
+                          <Plus size={13} />
+                          Start a new chat
+                        </button>
+                      </div>
+                    ) : (
+                      <>
+                        {/* New Chat shortcut at top of list */}
+                        <button
+                          onClick={startNewChat}
+                          id="ai-history-new-chat"
+                          className="flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl w-full text-left transition-all cursor-pointer active:scale-[0.98]"
+                          style={{
+                            background: "rgba(99,102,241,0.15)",
+                            border: "1px dashed rgba(99,102,241,0.4)",
+                          }}
+                        >
+                          <div className="w-7 h-7 rounded-lg bg-indigo-500/25 flex items-center justify-center shrink-0">
+                            <Plus size={14} className="text-indigo-400" />
+                          </div>
+                          <span className="text-indigo-300 text-xs font-medium">New conversation</span>
+                        </button>
+
+                        {sessions.map((session) => (
+                          <button
+                            key={session.id}
+                            onClick={() => loadSession(session)}
+                            className={`group flex items-start gap-2.5 px-3.5 py-2.5 rounded-xl w-full text-left transition-all cursor-pointer active:scale-[0.98] ${
+                              currentSessionId === session.id ? "ring-1 ring-indigo-500/60" : ""
+                            }`}
+                            style={{
+                              background:
+                                currentSessionId === session.id
+                                  ? "rgba(99,102,241,0.2)"
+                                  : "rgba(255,255,255,0.04)",
+                              border:
+                                currentSessionId === session.id
+                                  ? "1px solid rgba(99,102,241,0.4)"
+                                  : "1px solid rgba(255,255,255,0.07)",
+                            }}
+                            onMouseEnter={(e) => {
+                              if (currentSessionId !== session.id)
+                                (e.currentTarget as HTMLElement).style.background =
+                                  "rgba(255,255,255,0.07)";
+                            }}
+                            onMouseLeave={(e) => {
+                              if (currentSessionId !== session.id)
+                                (e.currentTarget as HTMLElement).style.background =
+                                  "rgba(255,255,255,0.04)";
+                            }}
+                          >
+                            <div className="w-7 h-7 rounded-lg bg-slate-700/60 flex items-center justify-center shrink-0 mt-0.5">
+                              <MessageSquare size={13} className="text-slate-400" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-slate-200 text-xs font-medium leading-snug truncate">
+                                {session.title}
+                              </p>
+                              <p className="flex items-center gap-1 text-slate-500 text-[10px] mt-0.5">
+                                <Clock size={9} />
+                                {formatRelativeTime(session.createdAt)}
+                                <span className="mx-0.5">·</span>
+                                {session.messages.length} msg{session.messages.length !== 1 ? "s" : ""}
+                              </p>
+                            </div>
+                            <button
+                              onClick={(e) => deleteSession(session.id, e)}
+                              className="opacity-0 group-hover:opacity-100 p-1 rounded-lg text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition-all shrink-0 cursor-pointer"
+                              aria-label="Delete session"
+                            >
+                              <Trash2 size={12} />
+                            </button>
+                          </button>
+                        ))}
+                      </>
+                    )}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
 
             {/* If Guest (not signed in) */}
             {!user ? (
