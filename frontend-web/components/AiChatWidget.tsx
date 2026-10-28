@@ -21,32 +21,40 @@ interface ChatMessage {
   id: string;
 }
 
+// Frontend uses "user" / "pharmacy" / "admin" from mapBackendRole
 const roleLabel: Record<string, string> = {
+  user: "Customer",
   patient: "Customer",
+  pharmacy: "Pharmacy Staff",
   pharmacy_staff: "Pharmacy Staff",
   admin: "Administrator",
-  pharmacy: "Pharmacy Staff",
 };
 
 const rolePill: Record<string, string> = {
+  user: "bg-emerald-500/20 text-emerald-300 border-emerald-500/30",
   patient: "bg-emerald-500/20 text-emerald-300 border-emerald-500/30",
-  pharmacy_staff: "bg-blue-500/20 text-blue-300 border-blue-500/30",
-  admin: "bg-purple-500/20 text-purpleald-300 border-purple-500/30",
   pharmacy: "bg-blue-500/20 text-blue-300 border-blue-500/30",
+  pharmacy_staff: "bg-blue-500/20 text-blue-300 border-blue-500/30",
+  admin: "bg-purple-500/20 text-purple-300 border-purple-500/30",
 };
 
 const SUGGESTIONS: Record<string, string[]> = {
+  user: [
+    "Find a pharmacy near me",
+    "Is Paracetamol available?",
+    "Show pharmacies in Addis Ababa",
+  ],
   patient: [
     "Find a pharmacy near me",
     "Is Paracetamol available?",
     "Show pharmacies in Addis Ababa",
   ],
-  pharmacy_staff: [
+  pharmacy: [
     "Show my low-stock medicines",
     "Give me an inventory summary",
     "Which medicines need restocking?",
   ],
-  pharmacy: [
+  pharmacy_staff: [
     "Show my low-stock medicines",
     "Give me an inventory summary",
     "Which medicines need restocking?",
@@ -58,6 +66,16 @@ const SUGGESTIONS: Record<string, string[]> = {
   ],
 };
 
+function getDefaultSuggestions(role: string): string[] {
+  return SUGGESTIONS[role] ?? SUGGESTIONS.user;
+}
+
+function getRoleDescription(role: string): string {
+  if (role === "admin") return " with system analytics, pharmacy activity, and inventory reports.";
+  if (role === "pharmacy" || role === "pharmacy_staff") return " check your inventory, identify low-stock medicines, and get restocking suggestions.";
+  return " find pharmacies, check medicine availability, and more.";
+}
+
 export default function AiChatWidget() {
   const { user } = useUser();
   const [open, setOpen] = useState(false);
@@ -68,14 +86,7 @@ export default function AiChatWidget() {
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
-  const getToken = () =>
-    typeof window !== "undefined"
-      ? localStorage.getItem("medpay_access_token")
-      : null;
-
-  const userRole = user?.role ?? "patient";
-  const suggestions = SUGGESTIONS[userRole] ?? SUGGESTIONS.patient;
-
+  // All hooks must come before any conditional returns
   useEffect(() => {
     if (open) {
       setTimeout(() => inputRef.current?.focus(), 300);
@@ -88,6 +99,7 @@ export default function AiChatWidget() {
 
   const sendMessage = useCallback(
     async (text: string) => {
+      if (!user) return;
       const trimmed = text.trim();
       if (!trimmed || loading) return;
 
@@ -103,7 +115,11 @@ export default function AiChatWidget() {
       setError(null);
 
       try {
-        const token = getToken();
+        const token =
+          typeof window !== "undefined"
+            ? localStorage.getItem("medpay_access_token")
+            : null;
+
         const history = messages.map(({ role, parts }) => ({ role, parts }));
 
         const res = await fetch(`${getApiBaseUrl()}/api/v1/ai/chat`, {
@@ -118,27 +134,22 @@ export default function AiChatWidget() {
         const data = await res.json();
 
         if (!res.ok || !data.success) {
-          throw new Error(
-            data.message ?? "AI service is temporarily unavailable."
-          );
+          throw new Error(data.message ?? "AI service is temporarily unavailable.");
         }
 
-        const aiMsg: ChatMessage = {
-          role: "model",
-          parts: data.data.reply,
-          id: (Date.now() + 1).toString(),
-        };
-        setMessages((prev) => [...prev, aiMsg]);
+        setMessages((prev) => [
+          ...prev,
+          { role: "model", parts: data.data.reply, id: (Date.now() + 1).toString() },
+        ]);
       } catch (err: unknown) {
         const e = err as Error;
         setError(e.message || "Something went wrong. Please try again.");
-        // Remove the user message if we errored
         setMessages((prev) => prev.filter((m) => m.id !== userMsg.id));
       } finally {
         setLoading(false);
       }
     },
-    [loading, messages]
+    [loading, messages, user]
   );
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -153,7 +164,11 @@ export default function AiChatWidget() {
     setError(null);
   };
 
-  if (!user) return null; // Only for authenticated users
+  // Don't render if not authenticated — all hooks have already been called above
+  if (!user) return null;
+
+  const userRole = user.role;
+  const suggestions = getDefaultSuggestions(userRole);
 
   return (
     <>
@@ -187,7 +202,8 @@ export default function AiChatWidget() {
               background: "rgba(15,15,25,0.97)",
               backdropFilter: "blur(20px)",
               border: "1px solid rgba(99,102,241,0.3)",
-              boxShadow: "0 24px 80px rgba(0,0,0,0.6), 0 0 0 1px rgba(99,102,241,0.1)",
+              boxShadow:
+                "0 24px 80px rgba(0,0,0,0.6), 0 0 0 1px rgba(99,102,241,0.1)",
               height: "540px",
             }}
           >
@@ -195,7 +211,8 @@ export default function AiChatWidget() {
             <div
               className="flex items-center justify-between px-4 py-3 shrink-0"
               style={{
-                background: "linear-gradient(135deg, rgba(99,102,241,0.2) 0%, rgba(139,92,246,0.2) 100%)",
+                background:
+                  "linear-gradient(135deg, rgba(99,102,241,0.2) 0%, rgba(139,92,246,0.2) 100%)",
                 borderBottom: "1px solid rgba(99,102,241,0.2)",
               }}
             >
@@ -204,16 +221,17 @@ export default function AiChatWidget() {
                   <Sparkles size={15} className="text-indigo-400" />
                 </div>
                 <div>
-                  <p className="text-white font-semibold text-sm leading-none">ClinicHub AI</p>
-                  <p className="text-slate-400 text-xs mt-0.5">
-                    Powered by Gemini
+                  <p className="text-white font-semibold text-sm leading-none">
+                    ClinicHub AI
                   </p>
+                  <p className="text-slate-400 text-xs mt-0.5">Powered by Gemini</p>
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                {/* Role badge */}
                 <span
-                  className={`text-xs px-2 py-0.5 rounded-full border font-medium ${rolePill[userRole] ?? rolePill.patient}`}
+                  className={`text-xs px-2 py-0.5 rounded-full border font-medium ${
+                    rolePill[userRole] ?? rolePill.user
+                  }`}
                 >
                   {roleLabel[userRole] ?? "User"}
                 </span>
@@ -238,7 +256,7 @@ export default function AiChatWidget() {
             </div>
 
             {/* Messages */}
-            <div className="flex-1 overflow-y-auto px-4 py-3 flex flex-col gap-3 scrollbar-thin">
+            <div className="flex-1 overflow-y-auto px-4 py-3 flex flex-col gap-3">
               {messages.length === 0 && !loading && (
                 <div className="flex flex-col items-center justify-center h-full gap-4 text-center px-4">
                   <div className="w-14 h-14 rounded-2xl bg-indigo-500/15 flex items-center justify-center">
@@ -250,11 +268,7 @@ export default function AiChatWidget() {
                     </p>
                     <p className="text-slate-400 text-xs mt-1 leading-relaxed">
                       I&apos;m your ClinicHub AI assistant. I can help you
-                      {userRole === "admin"
-                        ? " with system analytics, pharmacy activity, and inventory reports."
-                        : userRole === "pharmacy_staff" || userRole === "pharmacy"
-                        ? " check your inventory, identify low-stock medicines, and get restocking suggestions."
-                        : " find pharmacies, check medicine availability, and more."}
+                      {getRoleDescription(userRole)}
                     </p>
                   </div>
                   <div className="flex flex-col gap-2 w-full">
@@ -269,10 +283,12 @@ export default function AiChatWidget() {
                           color: "#a5b4fc",
                         }}
                         onMouseEnter={(e) => {
-                          (e.target as HTMLElement).style.background = "rgba(99,102,241,0.2)";
+                          (e.currentTarget as HTMLElement).style.background =
+                            "rgba(99,102,241,0.2)";
                         }}
                         onMouseLeave={(e) => {
-                          (e.target as HTMLElement).style.background = "rgba(99,102,241,0.1)";
+                          (e.currentTarget as HTMLElement).style.background =
+                            "rgba(99,102,241,0.1)";
                         }}
                       >
                         {s}
@@ -285,7 +301,9 @@ export default function AiChatWidget() {
               {messages.map((msg) => (
                 <div
                   key={msg.id}
-                  className={`flex gap-2 ${msg.role === "user" ? "justify-end" : "justify-start"}`}
+                  className={`flex gap-2 ${
+                    msg.role === "user" ? "justify-end" : "justify-start"
+                  }`}
                 >
                   {msg.role === "model" && (
                     <div className="w-7 h-7 rounded-full bg-indigo-500/20 flex items-center justify-center shrink-0 mt-0.5">
@@ -300,9 +318,7 @@ export default function AiChatWidget() {
                     }`}
                     style={
                       msg.role === "user"
-                        ? {
-                            background: "linear-gradient(135deg, #6366f1, #8b5cf6)",
-                          }
+                        ? { background: "linear-gradient(135deg, #6366f1, #8b5cf6)" }
                         : {
                             background: "rgba(255,255,255,0.07)",
                             border: "1px solid rgba(255,255,255,0.08)",
@@ -332,9 +348,18 @@ export default function AiChatWidget() {
                     }}
                   >
                     <div className="flex gap-1 items-center">
-                      <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-bounce" style={{ animationDelay: "0ms" }} />
-                      <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-bounce" style={{ animationDelay: "150ms" }} />
-                      <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-bounce" style={{ animationDelay: "300ms" }} />
+                      <span
+                        className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-bounce"
+                        style={{ animationDelay: "0ms" }}
+                      />
+                      <span
+                        className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-bounce"
+                        style={{ animationDelay: "150ms" }}
+                      />
+                      <span
+                        className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-bounce"
+                        style={{ animationDelay: "300ms" }}
+                      />
                     </div>
                   </div>
                 </div>
@@ -368,7 +393,10 @@ export default function AiChatWidget() {
                   border: "1px solid rgba(99,102,241,0.25)",
                 }}
               >
-                <MessageSquare size={15} className="text-slate-500 shrink-0 mb-1.5" />
+                <MessageSquare
+                  size={15}
+                  className="text-slate-500 shrink-0 mb-1.5"
+                />
                 <textarea
                   ref={inputRef}
                   id="ai-chat-input"
@@ -402,7 +430,7 @@ export default function AiChatWidget() {
                 </button>
               </div>
               <p className="text-center text-slate-600 text-[10px] mt-1.5">
-                ClinicHub AI · Role: {roleLabel[userRole] ?? "User"} · Responses use live database data
+                ClinicHub AI · Role: {roleLabel[userRole] ?? "User"} · Live database data
               </p>
             </div>
           </motion.div>
