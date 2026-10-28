@@ -71,7 +71,7 @@ export default function PharmacyCard({ pharmacy, viewType = "list", highlightedM
     });
 
   const displayName = pharmacy.name;
-  const displayAddress = pharmacy.address || pharmacy.city || "Addis Ababa";
+  const displayAddress = pharmacy.address || (pharmacy as any).city || "Addis Ababa";
   const displayHours = pharmacy.hours || "Open 24 Hours";
 
   const displayPrice = (pharmacy as any).highest_price ?? pharmacy.price ?? 450;
