@@ -83,6 +83,22 @@ function profileToUser(profile: ApiUserProfile): User {
   };
 }
 
+const DISMISSED_KEY = "clinichub_dismissed_notifications";
+const READ_KEY = "clinichub_read_notifications";
+
+function getDismissedIds(): Set<string> {
+  try { return new Set(JSON.parse(localStorage.getItem(DISMISSED_KEY) || "[]")); } catch { return new Set(); }
+}
+function saveDismissedIds(ids: Set<string>) {
+  try { localStorage.setItem(DISMISSED_KEY, JSON.stringify([...ids])); } catch {}
+}
+function getReadIds(): Set<string> {
+  try { return new Set(JSON.parse(localStorage.getItem(READ_KEY) || "[]")); } catch { return new Set(); }
+}
+function saveReadIds(ids: Set<string>) {
+  try { localStorage.setItem(READ_KEY, JSON.stringify([...ids])); } catch {}
+}
+
 export function UserProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [authReady, setAuthReady] = useState(false);
@@ -153,13 +169,23 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
         data: n.data || null,
       }));
 
-      // Merge: preserve local `isRead=true` — once read, never unread again
+      // Merge with persisted dismissed/read state from localStorage
       setNotifications((prev) => {
-        const localReadIds = new Set(prev.filter((p) => p.isRead).map((p) => p.id));
-        return parsed.map((n) => ({
-          ...n,
-          isRead: n.isRead || localReadIds.has(n.id),
-        }));
+        const dismissedIds = getDismissedIds();
+        const persistedReadIds = getReadIds();
+        // Also preserve any IDs marked as read in the current in-memory state
+        const localReadIds = new Set([
+          ...(prev ?? []).filter((p) => p.isRead).map((p) => p.id),
+          ...persistedReadIds,
+        ]);
+        return parsed
+          // Never show a notification that was dismissed/cleared
+          .filter((n) => !dismissedIds.has(n.id))
+          .map((n) => ({
+            ...n,
+            // Once read, always read — never downgrade back to unread
+            isRead: n.isRead || localReadIds.has(n.id),
+          }));
       });
     } catch (e) {
       console.error("Failed to fetch notifications", e);
@@ -384,7 +410,11 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
   };
 
   const markAsRead = async (id: string) => {
-    setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, isRead: true } : n)));
+    // Persist to localStorage so polls never undo this
+    const readIds = getReadIds();
+    readIds.add(id);
+    saveReadIds(readIds);
+    setNotifications((prev) => (prev ?? []).map((n) => (n.id === id ? { ...n, isRead: true } : n)));
     if (user) {
       try {
         await apiRequest(`/api/v1/notifications/${id}/read`, { method: "PATCH", auth: true });
@@ -395,8 +425,12 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
   };
 
   const markAllAsRead = async () => {
+    // Persist all current IDs to localStorage as read
+    const readIds = getReadIds();
+    (notifications ?? []).forEach((n) => readIds.add(n.id));
+    saveReadIds(readIds);
     // Optimistically mark all as read locally
-    setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
+    setNotifications((prev) => (prev ?? []).map((n) => ({ ...n, isRead: true })));
     if (user) {
       try {
         await apiRequest("/api/v1/notifications/read-all", { method: "PATCH", auth: true });
@@ -407,12 +441,21 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
   };
 
   const clearNotifications = () => {
+    // Persist every currently visible notification ID as dismissed
+    // so they are filtered out on the next poll and never re-appear
+    const dismissedIds = getDismissedIds();
+    (notifications ?? []).forEach((n) => dismissedIds.add(n.id));
+    saveDismissedIds(dismissedIds);
     setNotifications([]);
   };
 
   const dismissNotification = async (id: string) => {
+    // Persist to localStorage so this notification never returns on next poll
+    const dismissedIds = getDismissedIds();
+    dismissedIds.add(id);
+    saveDismissedIds(dismissedIds);
     // Remove from local state immediately
-    setNotifications((prev) => prev.filter((n) => n.id !== id));
+    setNotifications((prev) => (prev ?? []).filter((n) => n.id !== id));
     if (user) {
       try {
         await apiRequest(`/api/v1/notifications/${id}`, { method: "DELETE", auth: true });
