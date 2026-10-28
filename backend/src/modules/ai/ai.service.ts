@@ -334,22 +334,38 @@ async function runChatWithModel(
     },
   });
 
-  // Build history for multi-turn conversation — last 6 messages for speed
-  const chatHistory = history.slice(-6).map(msg => ({
-    role: msg.role,
+  // Build contents array using compatible role 'user' and 'model'
+  const contents: any[] = history.slice(-6).map(msg => ({
+    role: msg.role === 'model' ? 'model' : 'user',
     parts: [{ text: msg.parts }],
   }));
 
-  const chat = model.startChat({ history: chatHistory });
+  // Append latest user message
+  contents.push({
+    role: 'user',
+    parts: [{ text: message }],
+  });
 
-  let response: GenerateContentResult = await chat.sendMessage(message);
-  let result = response.response;
+  // Call model with timeout support
+  let result = await model.generateContent({ contents });
+  let response = result.response;
 
   // Agentic tool call loop (max 2 rounds for fast response)
   let rounds = 0;
   while (rounds < 2) {
-    const functionCalls = result.functionCalls();
+    const functionCalls = response.functionCalls();
     if (!functionCalls || functionCalls.length === 0) break;
+
+    // Add model candidate response to contents
+    const candidate = response.candidates?.[0];
+    if (candidate?.content) {
+      contents.push(candidate.content);
+    } else {
+      contents.push({
+        role: 'model',
+        parts: functionCalls.map(call => ({ functionCall: call })),
+      });
+    }
 
     // Execute all function calls
     const toolResults = await Promise.all(
@@ -364,15 +380,20 @@ async function runChatWithModel(
       })
     );
 
-    // Send tool results back to model
-    response = await chat.sendMessage(
-      toolResults.map(r => ({ functionResponse: r })) as any
-    );
-    result = response.response;
+    // Send tool results back with role: 'user'
+    // NOTE: gemini-3.8-flash rejects role: 'function' (causing 400 Bad Request).
+    // Role 'user' with functionResponse part is accepted by both Gemini 3.8 and Gemini 2.5!
+    contents.push({
+      role: 'user',
+      parts: toolResults.map(r => ({ functionResponse: r })),
+    });
+
+    result = await model.generateContent({ contents });
+    response = result.response;
     rounds++;
   }
 
-  const text = result.text();
+  const text = response.text();
   if (!text) throw new Error('AI returned an empty response');
   return text;
 }
@@ -392,13 +413,23 @@ export async function handleAiChat(
   }
 
   const genAI = new GoogleGenerativeAI(env.GEMINI_API_KEY);
-  const primaryModel = env.GEMINI_MODEL || 'gemini-2.5-flash';
+  const primaryModel = env.GEMINI_MODEL || 'gemini-3.8-flash';
   const fallbackModel = 'gemini-2.5-flash';
 
+  // Helper with 10-second timeout to prevent hanging on overloaded preview models
+  const executeWithTimeout = (model: string, timeoutMs = 10000): Promise<string> => {
+    return Promise.race([
+      runChatWithModel(genAI, model, role, message, history, pharmacyId),
+      new Promise<string>((_, reject) =>
+        setTimeout(() => reject(new Error(`Timeout waiting for ${model}`)), timeoutMs)
+      ),
+    ]);
+  };
+
   try {
-    return await runChatWithModel(genAI, primaryModel, role, message, history, pharmacyId);
+    return await executeWithTimeout(primaryModel, 10000);
   } catch (err: any) {
-    // If the configured model has fetch failed, 503 spike, or 404, fallback to gemini-2.5-flash
+    // If primary model has 503 high-demand, fetch failed, timeout, or 404, fallback transparently
     if (primaryModel !== fallbackModel) {
       console.warn(`[AI] Primary model ${primaryModel} failed (${err?.message || err?.status}), falling back to ${fallbackModel}`);
       return await runChatWithModel(genAI, fallbackModel, role, message, history, pharmacyId);
