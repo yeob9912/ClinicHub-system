@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
+import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Bot,
@@ -77,6 +78,7 @@ function getRoleDescription(role: string): string {
 }
 
 export default function AiChatWidget() {
+  const pathname = usePathname();
   const { user } = useUser();
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -164,6 +166,16 @@ export default function AiChatWidget() {
     setMessages([]);
     setError(null);
   };
+
+  // Do not render on login/signup/auth pages
+  const isAuthPage =
+    pathname === "/login" ||
+    pathname === "/signup" ||
+    pathname === "/registration" ||
+    pathname === "/reset-password" ||
+    pathname?.startsWith("/auth");
+
+  if (isAuthPage) return null;
 
   // If unauthenticated or authenticated, hooks must have run above
   const userRole = user?.role ?? "guest";

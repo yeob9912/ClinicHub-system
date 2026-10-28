@@ -13,24 +13,20 @@ export default function LayoutWrapper({ children }: { children: React.ReactNode 
   const router = useRouter();
   const { user, authReady } = useUser();
 
-  const isSpecialPage =
+  const isAuthRoute =
+    pathname.startsWith("/auth") ||
     pathname === "/login" ||
     pathname === "/signup" ||
     pathname === "/registration" ||
-    pathname === "/reset-password" ||
-    pathname.startsWith("/auth") ||
+    pathname === "/reset-password";
+
+  const isSpecialPage =
+    isAuthRoute ||
     pathname.startsWith("/admin") ||
     pathname.startsWith("/staff");
 
   useEffect(() => {
     if (!authReady || !user) return;
-
-    const isAuthRoute =
-      pathname.startsWith("/auth") ||
-      pathname === "/login" ||
-      pathname === "/signup" ||
-      pathname === "/registration" ||
-      pathname === "/reset-password";
 
     if (user.role === "pharmacy") {
       // Staff: can only access /staff, /auth, /login, /signup, /registration
@@ -59,8 +55,8 @@ export default function LayoutWrapper({ children }: { children: React.ReactNode 
       {!isSpecialPage && <Footer />}
       {/* Global call overlay — renders for all logged-in users */}
       <CallOverlay />
-      {/* Global AI Assistant — available for all authenticated users */}
-      <AiChatWidget />
+      {/* Global AI Assistant — hidden on login, signup, and auth pages */}
+      {!isAuthRoute && <AiChatWidget />}
     </>
   );
 }
