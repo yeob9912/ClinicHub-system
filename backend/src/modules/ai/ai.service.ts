@@ -315,25 +315,17 @@ function getToolsForRole(role: AiRole) {
 
 // ─── Main Chat Handler ───────────────────────────────────────────────────────
 
-export async function handleAiChat(
-  userId: string,
+async function runChatWithModel(
+  genAI: GoogleGenerativeAI,
+  modelName: string,
   role: AiRole,
   message: string,
   history: ChatMessage[],
   pharmacyId?: string
 ): Promise<string> {
-  if (!env.GEMINI_API_KEY) {
-    throw Object.assign(new Error('AI assistant is not configured on this server'), {
-      statusCode: 503,
-      code: 'AI_NOT_CONFIGURED',
-    });
-  }
-
-  const genAI = new GoogleGenerativeAI(env.GEMINI_API_KEY);
   const tools = getToolsForRole(role);
-
   const model = genAI.getGenerativeModel({
-    model: 'gemini-1.5-flash',
+    model: modelName,
     systemInstruction: getSystemPrompt(role, pharmacyId),
     tools: [{ functionDeclarations: tools as any }],
   });
@@ -379,4 +371,34 @@ export async function handleAiChat(
   const text = result.text();
   if (!text) throw new Error('AI returned an empty response');
   return text;
+}
+
+export async function handleAiChat(
+  userId: string,
+  role: AiRole,
+  message: string,
+  history: ChatMessage[],
+  pharmacyId?: string
+): Promise<string> {
+  if (!env.GEMINI_API_KEY) {
+    throw Object.assign(new Error('AI assistant is not configured on this server'), {
+      statusCode: 503,
+      code: 'AI_NOT_CONFIGURED',
+    });
+  }
+
+  const genAI = new GoogleGenerativeAI(env.GEMINI_API_KEY);
+  const primaryModel = env.GEMINI_MODEL || 'gemini-3.8-flash';
+  const fallbackModel = 'gemini-2.5-flash';
+
+  try {
+    return await runChatWithModel(genAI, primaryModel, role, message, history, pharmacyId);
+  } catch (err: any) {
+    // If primary model experiences a 503 high-demand spike or 404, fallback transparently
+    if (primaryModel !== fallbackModel && (err?.status === 503 || err?.status === 404)) {
+      console.warn(`[AI] Model ${primaryModel} returned ${err.status}. Falling back to ${fallbackModel}`);
+      return await runChatWithModel(genAI, fallbackModel, role, message, history, pharmacyId);
+    }
+    throw err;
+  }
 }
