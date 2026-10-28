@@ -413,27 +413,31 @@ export async function handleAiChat(
   }
 
   const genAI = new GoogleGenerativeAI(env.GEMINI_API_KEY);
-  const primaryModel = env.GEMINI_MODEL || 'gemini-3.8-flash';
-  const fallbackModel = 'gemini-2.5-flash';
+  const modelName = env.GEMINI_MODEL || 'gemini-3.8-flash';
 
-  // Helper with 10-second timeout to prevent hanging on overloaded preview models
-  const executeWithTimeout = (model: string, timeoutMs = 10000): Promise<string> => {
-    return Promise.race([
-      runChatWithModel(genAI, model, role, message, history, pharmacyId),
-      new Promise<string>((_, reject) =>
-        setTimeout(() => reject(new Error(`Timeout waiting for ${model}`)), timeoutMs)
-      ),
-    ]);
-  };
-
-  try {
-    return await executeWithTimeout(primaryModel, 10000);
-  } catch (err: any) {
-    // If primary model has 503 high-demand, fetch failed, timeout, or 404, fallback transparently
-    if (primaryModel !== fallbackModel) {
-      console.warn(`[AI] Primary model ${primaryModel} failed (${err?.message || err?.status}), falling back to ${fallbackModel}`);
-      return await runChatWithModel(genAI, fallbackModel, role, message, history, pharmacyId);
+  // Attempt with gemini-3.8-flash, with 1 retry on temporary 503 spikes
+  let lastError: any;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      if (attempt > 0) {
+        // Wait 1.5s before retry
+        await new Promise((r) => setTimeout(r, 1500));
+      }
+      return await runChatWithModel(genAI, modelName, role, message, history, pharmacyId);
+    } catch (err: any) {
+      lastError = err;
+      const is503 = err?.status === 503 || err?.message?.includes('503') || err?.message?.includes('UNAVAILABLE');
+      if (!is503) {
+        throw err;
+      }
+      console.warn(`[AI] Attempt ${attempt + 1} for ${modelName} encountered 503 capacity spike. Retrying...`);
     }
-    throw err;
   }
+
+  // If Google still has a 503 capacity spike after retry, return clear guidance
+  if (lastError?.status === 503 || lastError?.message?.includes('503') || lastError?.message?.includes('UNAVAILABLE')) {
+    return "Google's servers are currently experiencing temporary high demand for gemini-3.8-flash. Please send your question again in a moment.";
+  }
+
+  throw lastError;
 }
