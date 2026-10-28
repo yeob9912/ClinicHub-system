@@ -6,6 +6,7 @@ import { useUser } from "@/context/UserContext";
 import Navbar from "./Navbar";
 import Footer from "./Footer";
 import CallOverlay from "./CallOverlay";
+import AiChatWidget from "./AiChatWidget";
 
 export default function LayoutWrapper({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -58,6 +59,8 @@ export default function LayoutWrapper({ children }: { children: React.ReactNode 
       {!isSpecialPage && <Footer />}
       {/* Global call overlay — renders for all logged-in users */}
       <CallOverlay />
+      {/* Global AI Assistant — available for all authenticated users */}
+      <AiChatWidget />
     </>
   );
 }

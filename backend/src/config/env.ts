@@ -24,6 +24,9 @@ const EnvSchema = z.object({
   GOOGLE_CLIENT_ID: z.string().optional(),
   GOOGLE_CLIENT_SECRET: z.string().optional(),
   GOOGLE_REDIRECT_URI: z.string().optional(),
+
+  // Gemini AI assistant (optional — feature disabled when absent)
+  GEMINI_API_KEY: z.string().optional(),
   FRONTEND_URL: z
     .string()
     .default('http://localhost:3000')

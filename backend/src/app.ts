@@ -25,6 +25,7 @@ import { chatsRouter } from './modules/chats/chats.routes';
 import { callsRouter } from './modules/calls/calls.routes';
 import { receiptsRouter } from './modules/receipts/receipts.routes';
 import { complaintsRouter } from './modules/complaints/complaints.routes';
+import { aiRouter } from './modules/ai/ai.routes';
 
 export function createApp(): Application {
   const app = express();
@@ -197,6 +198,9 @@ export function createApp(): Application {
 
   // Complaints — user submit/list (auth only); admin routes are in adminRouter
   app.use('/api/v1/complaints', complaintsRouter);
+
+  // AI Assistant — require JWT (role resolved server-side)
+  app.use('/api/v1/ai', authMiddleware, aiRouter);
 
   // ─── 404 & Error Handlers (always last) ──────────────────────────────────
   app.use(notFoundHandler);
