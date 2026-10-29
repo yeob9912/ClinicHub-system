@@ -16,6 +16,7 @@ export default function InventoryPage({ pharmacyId, showToast }: InventoryProps)
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("All");
+  const [activities, setActivities] = useState<any[]>([]);
 
   // Add Modal & Edit States
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -58,7 +59,11 @@ export default function InventoryPage({ pharmacyId, showToast }: InventoryProps)
             category: norm.category,
             qty: norm.stock,
             price: norm.price,
-            expiry: "Oct 24, 2026", // Mock expiry
+            expiry: item.expiry_date 
+              ? new Date(item.expiry_date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+              : item.last_updated 
+                ? new Date(item.last_updated).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+                : "—",
           };
         });
         setMedicines(normalized);
@@ -74,6 +79,15 @@ export default function InventoryPage({ pharmacyId, showToast }: InventoryProps)
   useEffect(() => {
     fetchInventory();
   }, [fetchInventory]);
+
+  // Fetch real activities/notifications
+  useEffect(() => {
+    apiFetch("/notifications?limit=6")
+      .then((res) => {
+        setActivities(res.data ?? []);
+      })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     const highlight = localStorage.getItem("highlight_inventory_item");
@@ -403,31 +417,38 @@ export default function InventoryPage({ pharmacyId, showToast }: InventoryProps)
         {/* COLUMN 3: RIGHT PANEL (3 Columns) - RESTORED RECENT AUDIT LEDGER TIMELINE */}
         <div className="lg:col-span-3 space-y-6">
           
-          {/* Restored Audit Ledger Timeline */}
+          {/* Recent Activities Log Timeline (Real Data) */}
           <div className="bg-white rounded-2xl border border-slate-200/60 p-6 shadow-sm">
             <h4 className="text-sm font-bold text-slate-900 mb-5 flex items-center gap-2">
               <Activity className="h-4 w-4 text-indigo-600" /> Recent Activities Log
             </h4>
             <div className="relative border-l border-slate-200 pl-4 ml-1 space-y-5 py-1">
-              {[
-                { time: "10:42 AM", title: "Order #8834 Verified", desc: "Narcotics crosscheck complete" },
-                { time: "10:15 AM", title: "Stock Updated", desc: "Received +100 Units Paracetamol" },
-                { time: "09:30 AM", title: "Walk-in Transaction", desc: "POS payment successful" }
-              ].map((act, idx) => (
-                <div key={idx} className="relative group">
-                  {/* Timeline Node dot */}
-                  <div className="absolute -left-[22.5px] top-1 h-2.5 w-2.5 rounded-full bg-white border-2 border-indigo-500 group-hover:bg-indigo-500 transition-colors" />
-                  
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-[10px] font-mono text-indigo-600 font-bold">{act.time}</span>
-                    <span className="text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <ArrowDownRight className="h-3 w-3 rotate-45 text-slate-400" />
-                    </span>
-                  </div>
-                  <h4 className="text-xs font-bold text-slate-800 mt-0.5">{act.title}</h4>
-                  <p className="text-[11px] text-slate-400 font-medium mt-0.5 leading-tight">{act.desc}</p>
-                </div>
-              ))}
+              {activities.length === 0 ? (
+                <p className="text-xs text-slate-400 font-medium py-3 text-center">
+                  No recent activities recorded.
+                </p>
+              ) : (
+                activities.map((act, idx) => {
+                  const time = act.created_at
+                    ? new Date(act.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+                    : "Recent";
+                  return (
+                    <div key={act._id || idx} className="relative group">
+                      {/* Timeline Node dot */}
+                      <div className="absolute -left-[22.5px] top-1 h-2.5 w-2.5 rounded-full bg-white border-2 border-indigo-500 group-hover:bg-indigo-500 transition-colors" />
+                      
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-[10px] font-mono text-indigo-600 font-bold">{time}</span>
+                        <span className="text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <ArrowDownRight className="h-3 w-3 rotate-45 text-slate-400" />
+                        </span>
+                      </div>
+                      <h4 className="text-xs font-bold text-slate-800 mt-0.5">{act.title}</h4>
+                      <p className="text-[11px] text-slate-400 font-medium mt-0.5 leading-tight">{act.body}</p>
+                    </div>
+                  );
+                })
+              )}
             </div>
           </div>
 

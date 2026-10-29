@@ -33,7 +33,7 @@ export default function StaffPage() {
   // ── Shared profile state ─────────────────────────────────────
   const [profileImage, setProfileImage] = useState("");
   const [pharmacyId, setPharmacyId] = useState<string | null>(null);
-  const [pharmacyName, setPharmacyName] = useState<string>("Ethio-Medical Pharmacy");
+  const [pharmacyName, setPharmacyName] = useState<string>("");
   const [pharmacy, setPharmacy] = useState<any | null>(null);
 
   const handlePharmacyUpdate = (updatedPharmacy: any) => {
@@ -126,7 +126,7 @@ export default function StaffPage() {
     setMounted(true);
     
     if (user?.id) {
-      // Find pharmacy owned by the logged-in user
+      // Find pharmacy owned by the logged-in user or associated with them
       apiFetch(`/pharmacies?owner_id=${user.id}&limit=1`)
         .then((res) => {
           const ph = res.data?.[0] ?? null;
@@ -135,14 +135,14 @@ export default function StaffPage() {
             setPharmacyName(ph.name);
             setPharmacy(ph);
           } else {
-            // Fallback: If no pharmacy owned by this user is returned, search by name "Ethio-Medical Pharmacy"
-            apiFetch("/pharmacies")
+            // Fallback: load first pharmacy available
+            apiFetch("/pharmacies?limit=1")
               .then((allRes) => {
-                const ethioPh = allRes.data?.find((p: any) => p.name === "Ethio-Medical Pharmacy");
-                if (ethioPh) {
-                  setPharmacyId(ethioPh._id);
-                  setPharmacyName(ethioPh.name);
-                  setPharmacy(ethioPh);
+                const firstPh = allRes.data?.[0];
+                if (firstPh) {
+                  setPharmacyId(firstPh._id);
+                  setPharmacyName(firstPh.name);
+                  setPharmacy(firstPh);
                 }
               })
               .catch(() => {});
@@ -150,14 +150,13 @@ export default function StaffPage() {
         })
         .catch(() => {});
     } else {
-      // Direct fallback if user is not fully loaded yet or context not ready
-      apiFetch("/pharmacies")
+      apiFetch("/pharmacies?limit=1")
         .then((allRes) => {
-          const ethioPh = allRes.data?.find((p: any) => p.name === "Ethio-Medical Pharmacy");
-          if (ethioPh) {
-            setPharmacyId(ethioPh._id);
-            setPharmacyName(ethioPh.name);
-            setPharmacy(ethioPh);
+          const firstPh = allRes.data?.[0];
+          if (firstPh) {
+            setPharmacyId(firstPh._id);
+            setPharmacyName(firstPh.name);
+            setPharmacy(firstPh);
           }
         })
         .catch(() => {});

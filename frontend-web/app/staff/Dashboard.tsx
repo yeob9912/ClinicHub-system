@@ -15,12 +15,15 @@ interface DashboardProps {
   pharmacy?: any;
 }
 
-export default function StaffDashboard({ setActiveTab, staffName = "Estifanos Obssi", pharmacyName = "Ethio-Medical Pharmacy", pharmacy }: DashboardProps) {
+export default function StaffDashboard({ setActiveTab, staffName, pharmacyName, pharmacy }: DashboardProps) {
   const { user } = useUser();
+  const displayName = user?.full_name || staffName || "Staff Member";
+  const displayPharmacy = pharmacy?.name || pharmacyName || "Pharmacy";
   const [pendingOrders, setPendingOrders] = useState(0);
   const [lowStockCount, setLowStockCount] = useState(0);
   const [lowStockItems, setLowStockItems] = useState<any[]>([]);
   const [receiptCount, setReceiptCount] = useState(0);
+  const [todayRevenue, setTodayRevenue] = useState(0);
   const [recentOrders, setRecentOrders] = useState<any[]>([]);
   const [activities, setActivities] = useState<any[]>([]);
   const [today] = useState(new Date());
@@ -53,12 +56,17 @@ export default function StaffDashboard({ setActiveTab, staffName = "Estifanos Ob
         })
         .catch(() => {});
 
-      // Fetch receipt count for this pharmacy
-      apiFetch(`/receipts?pharmacy_id=${pharmacy._id}&limit=1`)
+      // Fetch real receipts and sales revenue for this pharmacy
+      apiFetch(`/receipts?pharmacy_id=${pharmacy._id}&limit=500`)
         .then((res) => {
-          // Use meta.total if available, otherwise count the returned array
-          const total = res.meta?.total ?? res.data?.length ?? 0;
+          const items: any[] = res.data ?? [];
+          const total = res.meta?.total ?? items.length;
           setReceiptCount(total);
+          const todayStr = new Date().toDateString();
+          const sumToday = items
+            .filter((r) => r.created_at && new Date(r.created_at).toDateString() === todayStr)
+            .reduce((sum: number, r: any) => sum + (Number(r.total) || 0), 0);
+          setTodayRevenue(sumToday);
         })
         .catch(() => {});
     }
@@ -107,8 +115,8 @@ export default function StaffDashboard({ setActiveTab, staffName = "Estifanos Ob
       {/* HEADER SECTION */}
       <header className="mb-8 flex flex-col md:flex-row justify-between items-start md:items-baseline gap-2 relative z-10">
         <div>
-          <h1 className="text-[32px] font-bold text-slate-900 leading-tight">Welcome back, {staffName}!</h1>
-          <p className="text-[20px] font-semibold text-[#0F766E] mt-1">{pharmacyName}</p>
+          <h1 className="text-[32px] font-bold text-slate-900 leading-tight">Welcome back, {displayName}!</h1>
+          <p className="text-[20px] font-semibold text-[#0F766E] mt-1">{displayPharmacy}</p>
         </div>
         <div className="text-right md:self-start mt-2 md:mt-0">
           <p className="text-xs text-slate-400 font-medium">{formattedDate}</p>
@@ -139,26 +147,39 @@ export default function StaffDashboard({ setActiveTab, staffName = "Estifanos Ob
           </div>
         </motion.div>
 
-        {/* Card 2: Today's Sales Summary */}
+        {/* Card 2: Today's Sales Summary (Real Data) */}
         <motion.div 
           whileHover={{ y: -4, shadow: "0 10px 15px -3px rgba(0, 0, 0, 0.05)" }}
           className="bg-white rounded-2xl border border-slate-200/60 p-6 shadow-sm relative transition-all"
         >
           <div className="flex justify-between items-center mb-3">
             <span className="text-sm font-semibold text-slate-800">Today's Sales Summary</span>
-            <span className="text-xs font-medium px-3 py-1 bg-[#D1FAE5] text-[#059669] rounded-full">Green</span>
+            <span className="text-xs font-medium px-3 py-1 bg-emerald-50 text-emerald-700 rounded-full flex items-center gap-1">
+              <DollarSign className="h-3 w-3" /> {receiptCount} Verified Sales
+            </span>
           </div>
           <div className="flex justify-between items-baseline">
             <div>
-              <p className="text-xs text-slate-400 font-medium">Gross revenue</p>
-              <div className="text-[32px] font-bold text-slate-900">$2,450.00</div>
+              <p className="text-xs text-slate-400 font-medium">Gross Revenue (Today)</p>
+              <div className="text-[32px] font-bold text-slate-900">
+                {todayRevenue > 0 ? (
+                  <>
+                    {todayRevenue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}{" "}
+                    <span className="text-sm font-bold text-slate-500">ETB</span>
+                  </>
+                ) : (
+                  <>
+                    0.00 <span className="text-sm font-bold text-slate-500">ETB</span>
+                  </>
+                )}
+              </div>
             </div>
-            {/* Custom SVG Mini Sparkline matching image_d71f44.jpg */}
-            <div className="w-28 h-10 overflow-visible">
-              <svg viewBox="0 0 100 30" className="w-full h-full">
-                <path d="M0,25 Q15,22 30,12 T60,18 T90,5 T100,2" fill="none" stroke="#10B981" strokeWidth="2.5" strokeLinecap="round" />
-              </svg>
-            </div>
+          </div>
+          <div className="mt-4 flex justify-between items-center text-xs text-slate-400">
+            <span>Total Receipts: {receiptCount}</span>
+            <span className="font-semibold text-[#0F766E]">
+              {todayRevenue > 0 ? "Active Sales Today" : "No sales recorded today"}
+            </span>
           </div>
         </motion.div>
 
