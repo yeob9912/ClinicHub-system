@@ -6,7 +6,7 @@ import Link from "next/link";
 import {
   ArrowLeft, Phone, MessageCircle, Star, MapPin, Clock,
   Heart, Share2, Stethoscope, ShoppingBag, Calendar, Check,
-  AlertCircle, ChevronRight, Video, Send, Loader2,
+  AlertCircle, ChevronRight, Send, Loader2,
   X, Plus, Minus, CheckCircle2, XCircle, Navigation, Copy,
   Volume2, Pin
 } from "lucide-react";
@@ -160,9 +160,26 @@ export default function PharmacyDetailsPage() {
   // Order state
   const [selectedItems, setSelectedItems] = useState<Record<string, number>>({});
   const [orderNotes, setOrderNotes] = useState("");
+  const [isDelivery, setIsDelivery] = useState(false);
+  const [deliveryAddress, setDeliveryAddress] = useState("");
   const [orderSubmitting, setOrderSubmitting] = useState(false);
   const [orderResult, setOrderResult] = useState<"success" | "error" | null>(null);
   const [orderMessage, setOrderMessage] = useState("");
+  const DELIVERY_FEE = 100;
+
+  const orderBreakdown = useMemo(() => {
+    let medicinesTotal = 0;
+    let itemCount = 0;
+    for (const [itemId, qty] of Object.entries(selectedItems)) {
+      const inv = inventory.find((i) => i._id === itemId);
+      const price = Number(inv?.price ?? 0);
+      medicinesTotal += price * qty;
+      itemCount += qty;
+    }
+    const delivery = isDelivery ? DELIVERY_FEE : 0;
+    const grandTotal = medicinesTotal + delivery;
+    return { medicinesTotal, delivery, grandTotal, itemCount };
+  }, [selectedItems, inventory, isDelivery]);
 
   // Visit state
   const [visitDate, setVisitDate] = useState("");
@@ -314,6 +331,12 @@ export default function PharmacyDetailsPage() {
   };
 
   const submitOrder = async () => {
+    if (Object.keys(selectedItems).length === 0) return;
+    if (isDelivery && !deliveryAddress.trim()) {
+      setOrderResult("error");
+      setOrderMessage("Please enter your delivery address.");
+      return;
+    }
     setOrderSubmitting(true);
     setOrderResult(null);
     try {
@@ -321,17 +344,25 @@ export default function PharmacyDetailsPage() {
         const inv = inventory.find((i) => i._id === itemId);
         return { 
           medicine_id: inv?.medicine_id?._id || null, 
-          name: inv?.medicine_id?.name ?? "Unknown Medicine", 
+          name: inv?.medicine_id?.name ?? "Medicine", 
           quantity: qty, 
-          price: inv?.price 
+          price: Number(inv?.price ?? 0)
         };
       });
       await apiFetch("/orders", {
         method: "POST",
-        body: JSON.stringify({ pharmacy_id: id, type: "order", items, notes: orderNotes }),
+        body: JSON.stringify({ 
+          pharmacy_id: id, 
+          type: "order", 
+          items, 
+          is_delivery: isDelivery,
+          delivery_fee: isDelivery ? DELIVERY_FEE : 0,
+          delivery_address: isDelivery ? deliveryAddress.trim() : null,
+          notes: orderNotes 
+        }),
       });
       setOrderResult("success");
-      setOrderMessage("Order placed! The pharmacy will respond shortly.");
+      setOrderMessage("Order placed! The pharmacy will review and respond shortly.");
     } catch (e: any) {
       setOrderResult("error");
       setOrderMessage(e.message ?? "Failed to place order.");
@@ -994,7 +1025,7 @@ export default function PharmacyDetailsPage() {
                     </div>
                   </div>
                 ) : showOrder ? (
-                  <div className="bg-white rounded-[2.5rem] border border-gray-100 shadow-lg overflow-hidden flex flex-col h-[480px] transition-all duration-300">
+                  <div className="bg-white rounded-[2.5rem] border border-gray-100 shadow-lg overflow-hidden flex flex-col min-h-[520px] max-h-[640px] transition-all duration-300">
                     {/* Inline Order Header */}
                     <div className="flex items-center gap-3 p-5 border-b border-gray-100 bg-slate-50 flex-shrink-0">
                       <button
@@ -1031,71 +1062,147 @@ export default function PharmacyDetailsPage() {
                         </div>
                       ) : (
                         <div className="space-y-3 h-full flex flex-col justify-between">
-                          <div className="flex-grow overflow-y-auto space-y-2 max-h-[180px] pr-1">
-                            {availableItems.length === 0 ? (
-                              <p className="text-slate-400 text-center py-8 text-xs font-medium">No medicines in stock.</p>
-                            ) : (
-                              availableItems.map((item) => (
-                                <div
-                                  key={item._id}
-                                  onClick={() => toggleItem(item._id)}
-                                  className={`flex items-center justify-between p-3 rounded-xl border cursor-pointer transition-all ${
-                                    selectedItems[item._id] ? "border-blue-500 bg-blue-50/50" : "border-gray-100 hover:border-gray-200"
+                          <div className="space-y-3">
+                            {/* Medicine Items List */}
+                            <div className="overflow-y-auto space-y-2 max-h-[160px] pr-1">
+                              {availableItems.length === 0 ? (
+                                <p className="text-slate-400 text-center py-6 text-xs font-medium">No medicines in stock.</p>
+                              ) : (
+                                availableItems.map((item) => {
+                                  const itemPrice = Number(item.price ?? 0);
+                                  const qty = selectedItems[item._id] ?? 0;
+                                  return (
+                                    <div
+                                      key={item._id}
+                                      onClick={() => toggleItem(item._id)}
+                                      className={`flex items-center justify-between p-2.5 rounded-xl border cursor-pointer transition-all ${
+                                        selectedItems[item._id] ? "border-blue-500 bg-blue-50/50" : "border-gray-100 hover:border-gray-200"
+                                      }`}
+                                    >
+                                      <div className="flex items-center gap-2.5 min-w-0">
+                                        <div className={`w-5 h-5 rounded-md flex items-center justify-center border transition-colors shrink-0 ${
+                                          selectedItems[item._id] ? "bg-blue-600 border-blue-600 text-white" : "border-gray-200 bg-white"
+                                        }`}>
+                                          {selectedItems[item._id] && <Check size={12} strokeWidth={4} />}
+                                        </div>
+                                        <div className="min-w-0">
+                                          <span className="font-bold text-xs text-slate-700 block truncate">{item.medicine_id?.name}</span>
+                                          <span className="text-[10px] text-slate-500 font-mono">
+                                            {itemPrice.toFixed(2)} ETB / unit
+                                          </span>
+                                        </div>
+                                      </div>
+                                      {selectedItems[item._id] && (
+                                        <div className="flex items-center gap-2 shrink-0" onClick={(e) => e.stopPropagation()}>
+                                          <button onClick={() => adjustQty(item._id, -1)} className="w-5 h-5 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-xs font-bold hover:bg-blue-200"><Minus size={10} /></button>
+                                          <span className="font-black text-slate-900 text-xs w-4 text-center">{qty}</span>
+                                          <button onClick={() => adjustQty(item._id, 1)} className="w-5 h-5 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-xs font-bold hover:bg-blue-200"><Plus size={10} /></button>
+                                          <span className="text-[10px] font-mono font-bold text-blue-700 min-w-[50px] text-right">
+                                            {(itemPrice * qty).toFixed(2)} ETB
+                                          </span>
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
+                                })
+                              )}
+                            </div>
+
+                            {/* Delivery Options */}
+                            <div className="pt-2 border-t border-gray-100 space-y-2">
+                              <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider block">Fulfillment Method</label>
+                              <div className="grid grid-cols-2 gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => setIsDelivery(false)}
+                                  className={`py-2 px-3 rounded-xl text-xs font-bold border transition-all flex items-center justify-center gap-1.5 ${
+                                    !isDelivery ? "border-blue-600 bg-blue-50 text-blue-700 shadow-xs" : "border-gray-200 text-slate-600 hover:border-gray-300"
                                   }`}
                                 >
-                                  <div className="flex items-center gap-2.5 min-w-0">
-                                    <div className={`w-5 h-5 rounded-md flex items-center justify-center border transition-colors shrink-0 ${
-                                      selectedItems[item._id] ? "bg-blue-600 border-blue-600 text-white" : "border-gray-200 bg-white"
-                                    }`}>
-                                      {selectedItems[item._id] && <Check size={12} strokeWidth={4} />}
-                                    </div>
-                                    <div className="min-w-0">
-                                      <span className="font-bold text-xs text-slate-700 block truncate">{item.medicine_id?.name}</span>
-                                      <span className="text-[10px] text-slate-400">{item.price?.toLocaleString()} ETB</span>
-                                    </div>
-                                  </div>
-                                  {selectedItems[item._id] && (
-                                    <div className="flex items-center gap-1.5 shrink-0" onClick={(e) => e.stopPropagation()}>
-                                      <button onClick={() => adjustQty(item._id, -1)} className="w-5 h-5 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-xs font-bold"><Minus size={10} /></button>
-                                      <span className="font-black text-slate-900 text-xs w-4 text-center">{selectedItems[item._id]}</span>
-                                      <button onClick={() => adjustQty(item._id, 1)} className="w-5 h-5 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-xs font-bold"><Plus size={10} /></button>
-                                    </div>
-                                  )}
-                                </div>
-                              ))
-                            )}
-                          </div>
+                                  🏪 Store Pickup
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setIsDelivery(true)}
+                                  className={`py-2 px-3 rounded-xl text-xs font-bold border transition-all flex items-center justify-center gap-1.5 ${
+                                    isDelivery ? "border-blue-600 bg-blue-600 text-white shadow-xs" : "border-gray-200 text-slate-600 hover:border-gray-300"
+                                  }`}
+                                >
+                                  🚚 Delivery (+100 ETB)
+                                </button>
+                              </div>
 
-                          <div className="space-y-1">
-                            <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider block">Special Instructions</label>
-                            <textarea
-                              value={orderNotes}
-                              onChange={(e) => setOrderNotes(e.target.value)}
-                              rows={2}
-                              placeholder="Type any instructions..."
-                              className="w-full border border-gray-200 rounded-xl p-3 text-xs font-medium focus:outline-none focus:border-blue-500 resize-none leading-relaxed"
-                            />
+                              {isDelivery && (
+                                <div className="space-y-1 pt-1 animate-in fade-in duration-200">
+                                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider block">Delivery Address *</label>
+                                  <input
+                                    type="text"
+                                    value={deliveryAddress}
+                                    onChange={(e) => setDeliveryAddress(e.target.value)}
+                                    placeholder="House No, Street, Sub-city, Addis Ababa"
+                                    className="w-full border border-blue-200 bg-blue-50/20 rounded-xl px-3 py-2 text-xs font-medium focus:outline-none focus:border-blue-500"
+                                  />
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Price Calculation Summary Box */}
+                            {Object.keys(selectedItems).length > 0 && (
+                              <div className="bg-slate-50 rounded-xl p-3 border border-slate-100 space-y-1 text-xs">
+                                <div className="flex justify-between text-slate-500">
+                                  <span>Medicines ({orderBreakdown.itemCount} units):</span>
+                                  <span className="font-mono text-slate-700">{orderBreakdown.medicinesTotal.toFixed(2)} ETB</span>
+                                </div>
+                                <div className="flex justify-between text-slate-500">
+                                  <span>Delivery Fee:</span>
+                                  <span className="font-mono text-emerald-600">
+                                    {isDelivery ? `+${orderBreakdown.delivery.toFixed(2)} ETB` : "0.00 ETB (Pickup)"}
+                                  </span>
+                                </div>
+                                <div className="flex justify-between font-black text-slate-900 pt-1.5 border-t border-slate-200 text-sm">
+                                  <span>Total Payable:</span>
+                                  <span className="text-blue-600">{orderBreakdown.grandTotal.toFixed(2)} ETB</span>
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Special Instructions */}
+                            <div className="space-y-1">
+                              <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider block">Special Instructions (optional)</label>
+                              <input
+                                type="text"
+                                value={orderNotes}
+                                onChange={(e) => setOrderNotes(e.target.value)}
+                                placeholder="Any note for the pharmacist..."
+                                className="w-full border border-gray-200 rounded-xl px-3 py-2 text-xs font-medium focus:outline-none focus:border-blue-500"
+                              />
+                            </div>
+
                             {orderResult === "error" && (
-                              <div className="bg-rose-50 text-rose-600 p-3 rounded-xl text-xs font-medium flex items-center gap-1.5">
-                                <AlertCircle size={14} /> {orderMessage}
+                              <div className="bg-rose-50 text-rose-600 p-2.5 rounded-xl text-xs font-medium flex items-center gap-1.5">
+                                <AlertCircle size={14} className="shrink-0" /> {orderMessage}
                               </div>
                             )}
                           </div>
 
-                          <div className="flex gap-2 border-t border-gray-100 pt-4 flex-shrink-0">
+                          <div className="flex gap-2 border-t border-gray-100 pt-3 flex-shrink-0">
                             <button
                               onClick={() => { setShowOrder(false); setOrderResult(null); setSelectedItems({}); }}
-                              className="flex-1 py-3 rounded-xl font-bold text-xs text-slate-500 hover:bg-gray-50"
+                              className="flex-1 py-2.5 rounded-xl font-bold text-xs text-slate-500 hover:bg-gray-50"
                             >
                               Cancel
                             </button>
                             <button
                               onClick={submitOrder}
-                              disabled={Object.keys(selectedItems).length === 0 || orderSubmitting}
-                              className="flex-1 py-3 bg-blue-600 text-white rounded-xl font-bold text-xs hover:bg-blue-700 shadow-lg disabled:opacity-50 flex items-center justify-center gap-2"
+                              disabled={Object.keys(selectedItems).length === 0 || orderSubmitting || (isDelivery && !deliveryAddress.trim())}
+                              className="flex-1 py-2.5 bg-blue-600 text-white rounded-xl font-bold text-xs hover:bg-blue-700 shadow-md disabled:opacity-50 flex items-center justify-center gap-1.5"
                             >
                               {orderSubmitting ? <Loader2 size={14} className="animate-spin" /> : null}
-                              {orderSubmitting ? "Placing…" : `Order (${Object.keys(selectedItems).length})`}
+                              {orderSubmitting 
+                                ? "Placing…" 
+                                : Object.keys(selectedItems).length > 0 
+                                  ? `Order Now • ${orderBreakdown.grandTotal.toFixed(2)} ETB` 
+                                  : "Select Medicines"}
                             </button>
                           </div>
                         </div>
@@ -1189,9 +1296,6 @@ export default function PharmacyDetailsPage() {
                   className="w-full flex items-center justify-center gap-3 py-4 bg-blue-50 text-blue-700 rounded-2xl font-bold hover:bg-blue-100 transition-colors"
                 >
                   <MessageCircle size={20} /> In-App Chat
-                </button>
-                <button className="w-full flex items-center justify-center gap-3 py-4 bg-purple-50 text-purple-700 rounded-2xl font-bold hover:bg-purple-100 transition-colors">
-                  <Video size={20} /> Video Call (Coming Soon)
                 </button>
               </div>
               <button onClick={() => setShowCall(false)} className="text-slate-400 font-bold hover:text-slate-600 transition-colors">Cancel</button>

@@ -14,6 +14,7 @@ export interface IReceipt extends Document {
   date: Date;
   items: IReceiptItem[];
   subtotal: number;
+  delivery_fee?: number;
   tax: number;                   // 15% of subtotal
   total: number;
   approved_by: string;           // pharmacist/staff full name
@@ -39,6 +40,7 @@ const receiptSchema = new Schema<IReceipt>(
     date:          { type: Date, default: Date.now },
     items:         { type: [receiptItemSchema], default: [] },
     subtotal:      { type: Number, required: true, min: 0 },
+    delivery_fee:  { type: Number, default: 0 },
     tax:           { type: Number, required: true, min: 0 },
     total:         { type: Number, required: true, min: 0 },
     approved_by:   { type: String, default: 'Pharmacist' },

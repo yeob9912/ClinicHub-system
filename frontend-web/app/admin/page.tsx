@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Users, Store, Pill, Search, ShieldCheck, Clock3, PackageCheck } from "lucide-react";
 import { motion } from "framer-motion";
 import { apiRequest } from "@/lib/api";
+import { useUser } from "@/context/UserContext";
 
 const roleMapToUI: Record<string, string> = {
   admin: "Admin",
@@ -31,6 +32,7 @@ const formatPhoneE164 = (phone: string | null | undefined): string => {
 };
 
 export default function AdminDashboardPage() {
+  const { user, authReady } = useUser();
   const [stats, setStats] = useState<any>({
     users: { total: 0 },
     pharmacies: { total: 0 },
@@ -43,6 +45,8 @@ export default function AdminDashboardPage() {
   const [recentMedicines, setRecentMedicines] = useState<any[]>([]);
 
   useEffect(() => {
+    if (!authReady || user?.role !== "admin") return;
+
     Promise.all([
       apiRequest<any>("/api/v1/admin/stats", { auth: true }),
       apiRequest<any>("/api/v1/admin/pharmacies?limit=4", { auth: true }),
@@ -62,9 +66,9 @@ export default function AdminDashboardPage() {
         const medList = Array.isArray(medData) ? medData : (medData?.data ?? []);
         setRecentMedicines(medList);
       })
-      .catch((err) => console.error("Error fetching admin stats:", err))
+      .catch((err) => console.warn("Notice fetching admin stats:", err))
       .finally(() => setLoading(false));
-  }, []);
+  }, [authReady, user?.role]);
 
   const statsConfig = [
     {

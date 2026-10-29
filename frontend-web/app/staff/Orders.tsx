@@ -75,8 +75,15 @@ export default function OrdersPage({ pharmacyId, showToast, highlightOrderId, on
             _id: item._id,
             id: norm.id,
             patient: norm.patient,
-            type: item.type === "visit" ? "Doctor Consultation" : "Prescription Scan",
+            type: item.type === "visit" ? "Doctor Consultation" : "Medicine Order",
             items: norm.items,
+            rawItems: item.items ?? [],
+            itemsTotal: norm.itemsTotal,
+            deliveryFee: norm.deliveryFee,
+            isDelivery: norm.isDelivery,
+            deliveryAddress: norm.deliveryAddress,
+            total: norm.total,
+            totalPrice: norm.totalPrice,
             status: displayStatus,
             rawStatus: item.status,
             date: norm.date,
@@ -838,11 +845,38 @@ export default function OrdersPage({ pharmacyId, showToast, highlightOrderId, on
                     </div>
                     <div>
                       <span className="block text-[10px] font-bold uppercase tracking-wide text-slate-400">
-                        {selectedOrder.isAppointment ? "Clinical Objectives" : "Items"}
+                        {selectedOrder.isAppointment ? "Clinical Objectives" : "Order Items & Payment"}
                       </span>
-                      <p className="font-mono text-xs font-bold text-slate-900 bg-slate-50 border border-slate-100 rounded-lg p-3 mt-1 leading-relaxed">
-                        {selectedOrder.items}
-                      </p>
+                      <div className="font-mono text-xs font-bold text-slate-900 bg-slate-50 border border-slate-100 rounded-lg p-3 mt-1 leading-relaxed space-y-2">
+                        <p>{selectedOrder.items}</p>
+                        {!selectedOrder.isAppointment && (
+                          <div className="pt-2 border-t border-slate-200/80 space-y-1 text-[11px] font-sans">
+                            <div className="flex justify-between text-slate-600">
+                              <span>Fulfillment:</span>
+                              <span className="font-bold text-slate-800">
+                                {selectedOrder.isDelivery ? "🚚 Home Delivery" : "🏪 Pharmacy Pickup"}
+                              </span>
+                            </div>
+                            {selectedOrder.isDelivery && (
+                              <>
+                                <div className="flex justify-between text-slate-600">
+                                  <span>Delivery Fee:</span>
+                                  <span className="font-bold text-emerald-600">+{selectedOrder.deliveryFee || 100} ETB</span>
+                                </div>
+                                {selectedOrder.deliveryAddress && (
+                                  <div className="text-[10px] text-slate-500 italic bg-white p-1.5 rounded border border-slate-100">
+                                    📍 Address: {selectedOrder.deliveryAddress}
+                                  </div>
+                                )}
+                              </>
+                            )}
+                            <div className="flex justify-between text-xs font-extrabold text-slate-900 pt-1 border-t border-slate-200">
+                              <span>Total Payment:</span>
+                              <span className="text-[#0F766E] font-black">{Number(selectedOrder.totalPrice || selectedOrder.total || 0).toFixed(2)} ETB</span>
+                            </div>
+                          </div>
+                        )}
+                      </div>
                     </div>
 
                     {selectedOrder.payment_bank_account && (

@@ -37,6 +37,11 @@ export interface IOrder extends Document {
   delivery_confirmed_at?: Date;    // when staff confirmed delivery
   approved_at?: Date;
   responded_by?: mongoose.Types.ObjectId;
+  is_delivery?: boolean;
+  delivery_fee?: number;
+  delivery_address?: string;
+  subtotal?: number;
+  total_price?: number;
   created_at: Date;
   updated_at: Date;
 }
@@ -46,7 +51,7 @@ const orderItemSchema = new Schema<IOrderItem>(
     medicine_id: { type: Schema.Types.ObjectId, ref: 'Medicine', default: null },
     name: { type: String, required: true, trim: true },
     quantity: { type: Number, required: true, min: 1 },
-    price: { type: Number, default: null },
+    price: { type: Number, default: 0 },
   },
   { _id: false }
 );
@@ -73,6 +78,11 @@ const orderSchema = new Schema<IOrder>(
     delivery_confirmed_at:  { type: Date, default: null },
     approved_at:            { type: Date, default: null },
     responded_by:           { type: Schema.Types.ObjectId, ref: 'User', default: null },
+    is_delivery:            { type: Boolean, default: false },
+    delivery_fee:           { type: Number, default: 0 },
+    delivery_address:       { type: String, default: null },
+    subtotal:               { type: Number, default: 0 },
+    total_price:            { type: Number, default: 0 },
   },
   {
     timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' },

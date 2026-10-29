@@ -99,21 +99,23 @@ export function normaliseSale(order: any): SaleRecord {
   };
 }
 
-export function normaliseOrder(order: any): OrderItem {
-  // Format items as a comma-separated string if it's an array, for direct display in table
+export function normaliseOrder(order: any): any {
+  // Format items as a detailed string with quantity and price
   let itemsStr = "";
   if (Array.isArray(order.items)) {
-    itemsStr = order.items.map((i: any) => `${i.name} (${i.quantity})`).join(", ");
+    itemsStr = order.items
+      .map((i: any) => `${i.name} (x${i.quantity || 1})${i.price ? ` @ ${i.price} ETB` : ''}`)
+      .join(", ");
   } else if (typeof order.items === "string") {
     itemsStr = order.items;
   }
 
-  let totalNum = 0;
-  if (typeof order.total === "number") {
-    totalNum = order.total;
-  } else if (Array.isArray(order.items)) {
-    totalNum = order.items.reduce((sum: number, i: any) => sum + (i.price || 0) * (i.quantity || 1), 0);
-  }
+  const itemsTotal = Array.isArray(order.items)
+    ? order.items.reduce((sum: number, i: any) => sum + (Number(i.price) || 0) * (Number(i.quantity) || 1), 0)
+    : 0;
+
+  const deliveryFee = order.delivery_fee ?? (order.is_delivery ? 100 : 0);
+  const totalNum = order.total_price ?? (itemsTotal + deliveryFee);
 
   let dateStr = "";
   if (order.created_at) {
@@ -128,7 +130,8 @@ export function normaliseOrder(order: any): OrderItem {
     type: order.type || "order",
     user_id: order.user_id || {},
     patient: order.patient || order.user_id?.full_name || "Unknown Patient",
-    items: itemsStr as any,
+    items: itemsStr,
+    rawItems: order.items ?? [],
     visit_date: order.visit_date,
     visit_time: order.visit_time,
     notes: order.notes,
@@ -136,7 +139,12 @@ export function normaliseOrder(order: any): OrderItem {
     rejection_reason: order.rejection_reason,
     created_at: order.created_at,
     date: dateStr,
+    itemsTotal,
+    deliveryFee,
+    isDelivery: Boolean(order.is_delivery),
+    deliveryAddress: order.delivery_address || "",
     total: totalNum,
+    totalPrice: totalNum,
     comment: order.staff_comment || order.rejection_reason || order.comment || "",
     availableTime: order.availableTime || (order.visit_date ? `${order.visit_date} ${order.visit_time || ""}` : ""),
   };

@@ -68,6 +68,11 @@ interface Order {
   receipt_url?: string;
   receipt_submitted_at?: string;
   delivery_confirmed_at?: string;
+  is_delivery?: boolean;
+  delivery_fee?: number;
+  delivery_address?: string;
+  subtotal?: number;
+  total_price?: number;
   created_at: string;
 }
 
@@ -467,16 +472,24 @@ function OrderCard({ order, index, onRefresh }: { order: Order; index: number; o
                       )}
                     </motion.div>
                   ))}
-                  {order.items.some(i => i.price) && (() => {
-                    const subtotal = order.items.reduce((sum, i) => sum + (i.price ?? 0) * i.quantity, 0);
+                  {(() => {
+                    const deliveryFee = order.delivery_fee ?? (order.is_delivery ? 100 : 0);
+                    const medicinesSubtotal = order.items.reduce((sum, i) => sum + (Number(i.price) || 50) * i.quantity, 0);
+                    const subtotal = medicinesSubtotal + deliveryFee;
                     const tax = parseFloat((subtotal * 0.15).toFixed(2));
                     const total = parseFloat((subtotal + tax).toFixed(2));
                     return (
                       <div className="border-t border-slate-100 mt-1 pt-2 space-y-1">
                         <div className="flex justify-between text-[11px] text-slate-500">
-                          <span>Subtotal</span>
-                          <span className="font-mono">{subtotal.toFixed(2)} ETB</span>
+                          <span>Medicines Subtotal</span>
+                          <span className="font-mono">{medicinesSubtotal.toFixed(2)} ETB</span>
                         </div>
+                        {order.is_delivery && (
+                          <div className="flex justify-between text-[11px] text-emerald-600 font-semibold">
+                            <span>Delivery Fee</span>
+                            <span className="font-mono">+{deliveryFee.toFixed(2)} ETB</span>
+                          </div>
+                        )}
                         <div className="flex justify-between text-[11px] text-slate-500">
                           <span>VAT (15%)</span>
                           <span className="font-mono">{tax.toFixed(2)} ETB</span>
@@ -576,17 +589,25 @@ function OrderCard({ order, index, onRefresh }: { order: Order; index: number; o
                     <p className="text-xs text-orange-800 font-medium">Transfer the exact amount shown below to the bank account, then upload your receipt screenshot.</p>
 
                     {/* Amount breakdown to pay */}
-                    {order.items.length > 0 && order.items.some(i => i.price) && (() => {
-                      const subtotal = order.items.reduce((sum, i) => sum + (i.price ?? 0) * i.quantity, 0);
+                    {order.items.length > 0 && (() => {
+                      const deliveryFee = order.delivery_fee ?? (order.is_delivery ? 100 : 0);
+                      const medicinesSubtotal = order.items.reduce((sum, i) => sum + (Number(i.price) || 50) * i.quantity, 0);
+                      const subtotal = medicinesSubtotal + deliveryFee;
                       const tax = parseFloat((subtotal * 0.15).toFixed(2));
                       const total = parseFloat((subtotal + tax).toFixed(2));
                       return (
                         <div className="bg-white rounded-xl border border-orange-200 px-4 py-3 space-y-2">
                           <p className="text-[9px] font-black uppercase tracking-widest text-orange-400 mb-1">Amount to Transfer</p>
                           <div className="flex justify-between text-xs text-slate-600">
-                            <span>Subtotal</span>
-                            <span className="font-mono font-semibold">{subtotal.toFixed(2)} ETB</span>
+                            <span>Medicines ({order.items.reduce((acc, i) => acc + i.quantity, 0)} items)</span>
+                            <span className="font-mono font-semibold">{medicinesSubtotal.toFixed(2)} ETB</span>
                           </div>
+                          {order.is_delivery && (
+                            <div className="flex justify-between text-xs text-emerald-600 font-semibold">
+                              <span>Delivery Fee</span>
+                              <span className="font-mono">+{deliveryFee.toFixed(2)} ETB</span>
+                            </div>
+                          )}
                           <div className="flex justify-between text-xs text-slate-600">
                             <span>VAT (15%)</span>
                             <span className="font-mono font-semibold">{tax.toFixed(2)} ETB</span>

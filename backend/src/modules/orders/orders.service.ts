@@ -28,6 +28,9 @@ export class OrdersService {
       visit_date?: string;
       visit_time?: string;
       notes?: string;
+      is_delivery?: boolean;
+      delivery_fee?: number;
+      delivery_address?: string;
     }
   ) {
     const pharmacy = await PharmacyModel.findById(input.pharmacy_id);
@@ -38,36 +41,47 @@ export class OrdersService {
       throw Object.assign(new Error('Pharmacy is not accepting requests'), { statusCode: 422 });
     }
 
-    // ── Inventory check for medicine orders ────────────────────────────────
+    // ── Inventory check and price enrichment for medicine orders ────────────────────────────────
     let outOfStockItems: string[] = [];
-    let enrichedItems: IOrderItem[] = input.items ?? [];
+    let enrichedItems: IOrderItem[] = [];
 
     if (input.type === 'order' && input.items && input.items.length > 0) {
-      const enriched: IOrderItem[] = [];
-
       for (const item of input.items) {
-        if (!item.medicine_id) {
-          enriched.push(item);
-          continue;
-        }
+        let price: number | null = null;
 
-        const inv = await InventoryModel.findOne({
-          pharmacy_id: new mongoose.Types.ObjectId(input.pharmacy_id),
-          medicine_id: item.medicine_id,
-        });
-
-        if (!inv || inv.stock_quantity < item.quantity) {
-          outOfStockItems.push(item.name);
-        } else {
-          enriched.push({
-            ...item,
-            price: inv.price,
+        if (item.medicine_id) {
+          const inv = await InventoryModel.findOne({
+            pharmacy_id: new mongoose.Types.ObjectId(input.pharmacy_id),
+            medicine_id: item.medicine_id,
           });
-        }
-      }
 
-      enrichedItems = enriched;
+          if (!inv || inv.stock_quantity < item.quantity) {
+            outOfStockItems.push(item.name);
+            price = inv ? Number(inv.price) : Number(item.price);
+          } else {
+            // Always use the DB inventory price — never trust frontend price
+            price = Number(inv.price);
+          }
+        } else {
+          // No medicine_id link — use whatever price came with the item
+          price = Number(item.price);
+        }
+
+        enrichedItems.push({
+          ...item,
+          quantity: Math.max(1, Number(item.quantity) || 1),
+          price: price ?? 0,
+        });
+      }
+    } else {
+      enrichedItems = input.items ?? [];
     }
+
+    // ── Delivery & Total Price Calculation ─────────────────────────────────
+    const isDelivery = Boolean(input.is_delivery);
+    const deliveryFee = isDelivery ? (input.delivery_fee && input.delivery_fee > 0 ? Number(input.delivery_fee) : 100) : 0;
+    const subtotal = enrichedItems.reduce((acc, it) => acc + ((Number(it.price) || 0) * (Number(it.quantity) || 1)), 0);
+    const totalPrice = subtotal + deliveryFee;
 
     // ── Auto-reject if any item is out of stock ────────────────────────────
     if (outOfStockItems.length > 0) {
@@ -81,6 +95,11 @@ export class OrdersService {
         visit_date: input.visit_date ?? null,
         visit_time: input.visit_time ?? null,
         notes: input.notes ?? null,
+        is_delivery: isDelivery,
+        delivery_fee: deliveryFee,
+        delivery_address: input.delivery_address ?? null,
+        subtotal,
+        total_price: totalPrice,
         status: 'rejected',
         rejection_reason: reason,
         staff_comment: `We are sorry, but we are unable to fulfill your order at this time. ${reason} Please check back later or visit a nearby pharmacy.`,
@@ -111,6 +130,11 @@ export class OrdersService {
       visit_date: input.visit_date ?? null,
       visit_time: input.visit_time ?? null,
       notes: input.notes ?? null,
+      is_delivery: isDelivery,
+      delivery_fee: deliveryFee,
+      delivery_address: input.delivery_address ?? null,
+      subtotal,
+      total_price: totalPrice,
       status: 'pending',
     });
 
@@ -300,10 +324,12 @@ export class OrdersService {
         const items = (order.items ?? []).map(i => ({
           name: i.name,
           quantity: i.quantity,
-          price: i.price ?? 0,
+          price: (i.price && i.price > 0) ? i.price : 50,
         }));
 
-        const subtotal = items.reduce((sum, i) => sum + i.price * i.quantity, 0);
+        const itemsSubtotal = items.reduce((sum, i) => sum + i.price * i.quantity, 0);
+        const deliveryFee = (order as any).delivery_fee ?? ((order as any).is_delivery ? 100 : 0);
+        const subtotal = itemsSubtotal + deliveryFee;
         const tax = parseFloat((subtotal * 0.15).toFixed(2));
         const total = parseFloat((subtotal + tax).toFixed(2));
 
@@ -317,13 +343,18 @@ export class OrdersService {
           date: new Date(),
           items,
           subtotal,
+          delivery_fee: deliveryFee,
           tax,
           total,
           approved_by: (staffUser as any)?.full_name ?? 'Pharmacist',
         });
 
         // Create sale record
-        const itemsSummary = items.map(i => `${i.name} (x${i.quantity})`).join(', ');
+        let itemsSummary = items.map(i => `${i.name} (x${i.quantity}) - ${(i.price * i.quantity).toFixed(2)} ETB`).join(', ');
+        if (deliveryFee > 0) {
+          itemsSummary += ` + Delivery Fee (${deliveryFee.toFixed(2)} ETB)`;
+        }
+
         await SaleModel.create({
           pharmacy_id: order.pharmacy_id,
           order_id: order._id,
