@@ -24,6 +24,7 @@ interface ChatMessage {
   role: "user" | "model";
   parts: string;
   id: string;
+  isStreaming?: boolean;
 }
 
 interface ChatSession {
@@ -139,15 +140,26 @@ export default function AiChatWidget() {
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const typingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Clean up typing animation on unmount
+  useEffect(() => {
+    return () => {
+      if (typingIntervalRef.current) {
+        clearInterval(typingIntervalRef.current);
+      }
+    };
+  }, []);
 
   // Load sessions from localStorage on mount
   useEffect(() => {
     setSessions(loadSessions());
   }, []);
 
-  // Auto-save session whenever messages change (only if there is an AI reply)
+  // Auto-save session whenever messages change (only if there is an AI reply and typing is complete)
   useEffect(() => {
     if (messages.length === 0) return;
+    if (messages.some((m) => m.isStreaming)) return;
     const hasAiReply = messages.some((m) => m.role === "model");
     if (!hasAiReply) return;
 
@@ -196,6 +208,10 @@ export default function AiChatWidget() {
   }, [messages, loading]);
 
   const startNewChat = useCallback(() => {
+    if (typingIntervalRef.current) {
+      clearInterval(typingIntervalRef.current);
+      typingIntervalRef.current = null;
+    }
     setMessages([]);
     setError(null);
     setCurrentSessionId(null);
@@ -204,7 +220,11 @@ export default function AiChatWidget() {
   }, []);
 
   const loadSession = useCallback((session: ChatSession) => {
-    setMessages(session.messages);
+    if (typingIntervalRef.current) {
+      clearInterval(typingIntervalRef.current);
+      typingIntervalRef.current = null;
+    }
+    setMessages(session.messages.map((m) => ({ ...m, isStreaming: false })));
     setCurrentSessionId(session.id);
     setError(null);
     setShowHistory(false);
@@ -270,10 +290,55 @@ export default function AiChatWidget() {
           throw new Error(data.message ?? "AI service is temporarily unavailable.");
         }
 
+        const fullReply = (data.data?.reply as string) || "";
+        const modelMsgId = (Date.now() + 1).toString();
+
+        // Turn off Thinking spinner so typing begins immediately
+        setLoading(false);
+
+        // Add empty model message in streaming state
         setMessages((prev) => [
           ...prev,
-          { role: "model", parts: data.data.reply, id: (Date.now() + 1).toString() },
+          { role: "model", parts: "", id: modelMsgId, isStreaming: true },
         ]);
+
+        // Clear any previous typing interval
+        if (typingIntervalRef.current) {
+          clearInterval(typingIntervalRef.current);
+          typingIntervalRef.current = null;
+        }
+
+        // ChatGPT-style dynamic typewriter pacing:
+        // Short responses type smoothly character-by-character; longer responses stream in small chunks
+        const tickMs = 18;
+        const targetDurationMs = Math.min(2200, Math.max(600, fullReply.length * 3));
+        const totalTicks = Math.max(1, Math.floor(targetDurationMs / tickMs));
+        const charsPerTick = Math.max(1, Math.ceil(fullReply.length / totalTicks));
+
+        let charIndex = 0;
+        typingIntervalRef.current = setInterval(() => {
+          charIndex += charsPerTick;
+          if (charIndex >= fullReply.length) {
+            if (typingIntervalRef.current) {
+              clearInterval(typingIntervalRef.current);
+              typingIntervalRef.current = null;
+            }
+            setMessages((prev) =>
+              prev.map((m) =>
+                m.id === modelMsgId
+                  ? { ...m, parts: fullReply, isStreaming: false }
+                  : m
+              )
+            );
+          } else {
+            const currentSlice = fullReply.slice(0, charIndex);
+            setMessages((prev) =>
+              prev.map((m) =>
+                m.id === modelMsgId ? { ...m, parts: currentSlice } : m
+              )
+            );
+          }
+        }, tickMs);
       } catch (err: unknown) {
         const e = err as Error;
         setError(e.message || "Something went wrong. Please try again.");
@@ -308,8 +373,14 @@ export default function AiChatWidget() {
   const userRole = user?.role ?? "guest";
   const suggestions = getDefaultSuggestions(userRole);
 
-  // Helper to format model messages with basic markdown (bold, lists)
-  const renderMessageContent = (text: string) => {
+  // Helper to format model messages with basic markdown (bold, lists) and ChatGPT-style streaming cursor
+  const renderMessageContent = (text: string, isStreaming = false) => {
+    if (!text && isStreaming) {
+      return (
+        <span className="inline-block w-2 h-4 bg-indigo-400 animate-pulse rounded-xs" />
+      );
+    }
+
     const lines = text.split("\n");
     return lines.map((line, lineIdx) => {
       // Check for bullet point
@@ -331,11 +402,18 @@ export default function AiChatWidget() {
         return part;
       });
 
+      const isLastLine = lineIdx === lines.length - 1;
+
       if (isBullet) {
         return (
           <div key={lineIdx} className="flex items-start gap-1.5 my-0.5">
             <span className="text-indigo-400 mt-1 text-xs shrink-0">•</span>
-            <span className="flex-1">{formatted}</span>
+            <span className="flex-1">
+              {formatted}
+              {isStreaming && isLastLine && (
+                <span className="inline-block w-1.5 h-3.5 bg-indigo-400 ml-1 translate-y-0.5 animate-pulse rounded-xs" />
+              )}
+            </span>
           </div>
         );
       }
@@ -347,6 +425,9 @@ export default function AiChatWidget() {
       return (
         <div key={lineIdx} className="my-0.5">
           {formatted}
+          {isStreaming && isLastLine && (
+            <span className="inline-block w-1.5 h-3.5 bg-indigo-400 ml-1 translate-y-0.5 animate-pulse rounded-xs" />
+          )}
         </div>
       );
     });
@@ -734,7 +815,7 @@ export default function AiChatWidget() {
                         }
                       >
                         {msg.role === "model"
-                          ? renderMessageContent(msg.parts)
+                          ? renderMessageContent(msg.parts, !!msg.isStreaming)
                           : msg.parts}
                       </div>
                       {msg.role === "user" && (
