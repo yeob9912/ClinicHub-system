@@ -444,9 +444,14 @@ You are assisting an authenticated ADMINISTRATOR (Role: Administrator).
 You have full authorized access to system-wide management tools and live database analytics.
 
 CRITICAL INSTRUCTIONS FOR ADMINISTRATOR REQUESTS:
-1. System Overview (FR-47, FR-52):
-   - When asked for an overall summary, overview, or general report of ClinicHub, call "get_admin_system_overview".
-   - Report user counts, pharmacy approvals/activity, medicine totals, and inventory health.
+1. System Overview & Full System Info (FR-47, FR-52):
+   - When asked for an overall summary, overview, general report, system statistics, or full system info, call "get_admin_system_overview".
+   - You MUST present the COMPLETE breakdown including ALL of the following sections with actual numbers:
+     * Users: Total registered users, Customers/Patients, Pharmacy Staff, Administrators, New registrations this month.
+     * Pharmacies: Total registered pharmacies, Approved, Pending approval, Active, Incomplete profiles.
+     * Medicines & Inventory: Total registered medicines, Total inventory records, In-stock items, Out-of-stock items, Low-stock items.
+     * Recent Activity: Newest user and newest pharmacy registered.
+   - Never omit sections or output only 1 or 2 partial counts (e.g., never just list pharmacies and staff); always output the full structured system report.
 
 2. User Statistics (FR-48, FR-53):
    - When asked "How many users are registered?", "How many staff members are registered?", or about new registrations this month, call "get_admin_user_statistics".
@@ -663,7 +668,7 @@ async function runChatWithModel(
     systemInstruction: getSystemPrompt(role, pharmacyId),
     tools: [{ functionDeclarations: tools as any }],
     generationConfig: {
-      maxOutputTokens: 600,
+      maxOutputTokens: 1200,
       temperature: 0.2,
     },
   });
@@ -680,11 +685,21 @@ async function runChatWithModel(
     parts: [{ text: message }],
   });
 
-  // Helper to safely call generateContent and handle 'model output error' from SDK
+  // Helper to safely call generateContent with timeout and handle 'model output error' from SDK
   const safeGenerate = async (payload: { contents: any[] }): Promise<any> => {
+    const callWithTimeout = (contents: any[], timeoutMs = 15000): Promise<any> => {
+      let timer: NodeJS.Timeout;
+      const timeoutPromise = new Promise((_, reject) => {
+        timer = setTimeout(() => reject(new Error('AI model request timed out')), timeoutMs);
+      });
+      return Promise.race([
+        model.generateContent({ contents }).then(r => r.response),
+        timeoutPromise,
+      ]).finally(() => clearTimeout(timer));
+    };
+
     try {
-      const res = await model.generateContent(payload);
-      return res.response;
+      return await callWithTimeout(payload.contents);
     } catch (err: any) {
       const msg: string = err?.message ?? '';
       // SDK throws this when model returns empty candidate (no text, no tool call)
@@ -698,8 +713,7 @@ async function runChatWithModel(
           },
         ];
         try {
-          const retryRes = await model.generateContent({ contents: retryContents });
-          return retryRes.response;
+          return await callWithTimeout(retryContents, 10000);
         } catch {
           return null;
         }
@@ -783,9 +797,9 @@ export async function handleAiChat(
   }
 
   const genAI = new GoogleGenerativeAI(env.GEMINI_API_KEY);
-  const modelName = env.GEMINI_MODEL || 'gemini-3.8-flash';
+  const modelName = env.GEMINI_MODEL || 'gemini-2.5-flash';
 
-  // Attempt with gemini-3.8-flash, with 1 retry on temporary 503 spikes or network drops (fetch failed)
+  // Attempt with model, with 1 retry on temporary 503 spikes, network drops (fetch failed), or timeouts
   let lastError: any;
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
@@ -798,26 +812,31 @@ export async function handleAiChat(
       lastError = err;
       const is503 = err?.status === 503 || err?.message?.includes('503') || err?.message?.includes('UNAVAILABLE');
       const isFetchFailed = err?.message?.includes('fetch failed');
-      const isRetryable = is503 || isFetchFailed;
+      const isTimeout = err?.message?.includes('timed out');
+      const isRetryable = is503 || isFetchFailed || isTimeout;
 
       if (!isRetryable) {
         throw err;
       }
       console.warn(
         `[AI] Attempt ${attempt + 1} for ${modelName} encountered ${
-          isFetchFailed ? 'network drop (fetch failed)' : '503 capacity spike'
+          isTimeout ? 'request timeout' : isFetchFailed ? 'network drop (fetch failed)' : '503 capacity spike'
         }. Retrying...`
       );
     }
   }
 
   // Gracefully handle specific API errors instead of crashing with 500
+  if (lastError?.message?.includes('timed out')) {
+    return 'The AI service timed out while processing your request. Please try asking again.';
+  }
+
   if (lastError?.message?.includes('fetch failed')) {
     return 'A temporary network connection issue occurred while contacting Google Gemini servers. Please try sending your message again.';
   }
 
   if (lastError?.status === 503 || lastError?.message?.includes('503') || lastError?.message?.includes('UNAVAILABLE')) {
-    return "Google's servers are currently experiencing temporary high demand for gemini-3.8-flash. Please send your question again in a moment.";
+    return "Google's servers are currently experiencing temporary high demand for the AI model. Please send your question again in a moment.";
   }
 
   if (lastError?.status === 429 || lastError?.message?.includes('429') || lastError?.message?.includes('quota')) {

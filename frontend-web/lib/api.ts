@@ -104,14 +104,31 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
   const baseUrl = getApiBaseUrl();
   const url = path.startsWith("http") ? path : `${baseUrl}${path}`;
 
-  let res = await fetch(url, { ...rest, headers: requestHeaders });
+  let res: Response;
+  try {
+    res = await fetch(url, { ...rest, headers: requestHeaders });
+  } catch (err: any) {
+    throw new ApiError(
+      "Unable to reach server. Please ensure the backend server is running.",
+      0,
+      "NETWORK_ERROR"
+    );
+  }
 
   if (res.status === 401 && auth && !skipRefresh) {
     const refreshed = await refreshAccessToken();
     if (refreshed) {
       const token = getAccessToken();
       if (token) requestHeaders.set("Authorization", `Bearer ${token}`);
-      res = await fetch(url, { ...rest, headers: requestHeaders });
+      try {
+        res = await fetch(url, { ...rest, headers: requestHeaders });
+      } catch {
+        throw new ApiError(
+          "Unable to reach server after token refresh.",
+          0,
+          "NETWORK_ERROR"
+        );
+      }
     } else {
       clearTokens();
     }

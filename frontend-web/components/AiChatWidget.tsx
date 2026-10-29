@@ -261,6 +261,7 @@ export default function AiChatWidget() {
             ...(token ? { Authorization: `Bearer ${token}` } : {}),
           },
           body: JSON.stringify({ message: trimmed, history }),
+          signal: AbortSignal.timeout(30000),
         });
 
         const data = await res.json();

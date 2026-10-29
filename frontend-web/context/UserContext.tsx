@@ -187,8 +187,12 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
             isRead: n.isRead || localReadIds.has(n.id),
           }));
       });
-    } catch (e) {
-      console.error("Failed to fetch notifications", e);
+    } catch (e: any) {
+      if (e?.code === "NETWORK_ERROR" || e?.name === "TypeError" || e?.message?.includes("reach server")) {
+        console.warn("[Notifications] Server unreachable during background poll.");
+      } else {
+        console.error("Failed to fetch notifications", e);
+      }
     }
   }, []);
 
