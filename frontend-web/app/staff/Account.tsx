@@ -244,12 +244,12 @@ export default function AccountPage({ pharmacyId, pharmacy, profileImage, setPro
         className="rounded-full border-2 border-[#0F766E] object-cover object-top shrink-0"
       />
     ) : (
-      <span
-        style={{ width: size, height: size }}
-        className="rounded-full border-2 border-dashed border-[#0F766E]/40 bg-slate-100 flex items-center justify-center shrink-0"
+      <div
+        style={{ width: size, height: size, fontSize: size * 0.4 }}
+        className="rounded-full bg-gradient-to-br from-[#0F766E] to-[#0d9488] flex items-center justify-center text-white font-black uppercase shrink-0 select-none"
       >
-        <UserCircle2 className="text-slate-400" style={{ width: size * 0.65, height: size * 0.65 }} />
-      </span>
+        {profile.name?.trim()[0]?.toUpperCase() || "?"}
+      </div>
     );
 
   return (

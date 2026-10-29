@@ -74,7 +74,7 @@ export default function PharmacyCard({ pharmacy, viewType = "list", highlightedM
   const displayAddress = pharmacy.address || (pharmacy as any).city || "Addis Ababa";
   const displayHours = pharmacy.hours || "Open 24 Hours";
 
-  const displayPrice = (pharmacy as any).highest_price ?? pharmacy.price ?? 450;
+  const displayPrice = Number((pharmacy as any).highest_price ?? pharmacy.price ?? 450) || 0;
 
   const rawDist = (pharmacy as any).distance_km ?? pharmacy.distance;
   const displayDistance = rawDist !== undefined && rawDist !== null ? Number(rawDist).toFixed(1) : "2.0";

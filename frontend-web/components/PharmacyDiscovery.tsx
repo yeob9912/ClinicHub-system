@@ -161,7 +161,7 @@ function DiscoveryContent() {
   const [selectedRating, setSelectedRating] = useState<number | null>(null);
   const [openNowOnly, setOpenNowOnly] = useState(false);
   const [inStockOnly, setInStockOnly] = useState(false);
-  const [distance, setDistance] = useState(10);
+  const [distance, setDistance] = useState(50);
   const [priceMax, setPriceMax] = useState(1000);
   const [userCoords, setUserCoords] = useState<{ lat: number; lng: number } | null>(null);
 
@@ -186,15 +186,12 @@ function DiscoveryContent() {
   const [apiError, setApiError] = useState<string | null>(null);
   const [fetchTick, setFetchTick] = useState(0); // increment to retry
 
-  // Fetch approved pharmacies from backend on mount, retry, searchQuery or userCoords changes
+  // Fetch approved pharmacies from backend on mount, retry, or searchQuery
   useEffect(() => {
     setApiLoading(true);
     setApiError(null);
     const medicineParam = searchQuery.trim();
-    let url = `${API}/pharmacies?status=approved&limit=100${medicineParam ? `&medicine=${encodeURIComponent(medicineParam)}` : ''}`;
-    if (userCoords) {
-      url += `&lat=${userCoords.lat}&lng=${userCoords.lng}&radius=${distance}`;
-    }
+    const url = `${API}/pharmacies?status=approved&limit=100${medicineParam ? `&medicine=${encodeURIComponent(medicineParam)}` : ''}`;
     
     fetch(url, {
       headers: getAuthHeader(),
@@ -216,7 +213,16 @@ function DiscoveryContent() {
         setApiError(err.message ?? "Failed to load pharmacies");
       })
       .finally(() => setApiLoading(false));
-  }, [fetchTick, searchQuery, userCoords, distance]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fetchTick, searchQuery]);
+
+  // When userCoords changes, re-calculate distances on existing pharmacies without refetching
+  useEffect(() => {
+    if (userCoords && allPharmacies.length > 0) {
+      setAllPharmacies((prev) => prev.map((p) => normalisePharmacy(p, userCoords)));
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userCoords]);
 
   // Sync with URL params
   useEffect(() => {
@@ -226,32 +232,36 @@ function DiscoveryContent() {
 
   const filteredPharmacies = useMemo(() => {
     let result = allPharmacies.filter((p) => {
-      const matchesRating = !selectedRating || p.rating >= selectedRating;
       const matchesSearch = !searchQuery.trim() || 
                             p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
                             (p.matched_medicine && p.matched_medicine.name.toLowerCase().includes(searchQuery.toLowerCase()));
+      const matchesRating = !selectedRating || p.rating >= selectedRating;
       const matchesOpen = !openNowOnly || p.hours !== "Closed";
       const matchesStock = !inStockOnly || p.status === "In Stock" || p.status === "Low Stock";
-      const matchesDistance = p.distance <= distance;
-      const matchesPrice = p.price <= priceMax || p.highest_price <= priceMax;
 
-      return matchesRating && matchesSearch && matchesOpen && matchesStock && matchesDistance && matchesPrice;
+      return matchesSearch && matchesRating && matchesOpen && matchesStock;
     });
 
-    if (sortBy === "distance") result.sort((a, b) => (a.distance ?? 0) - (b.distance ?? 0));
-    else if (sortBy === "rating") result.sort((a, b) => b.rating - a.rating);
-    else if (sortBy === "name") result.sort((a, b) => a.name.localeCompare(b.name));
-    else if (sortBy === "price") result.sort((a, b) => a.price - b.price);
+    // Sort according to different perspectives
+    if (sortBy === "distance") {
+      result.sort((a, b) => (Number(a.distance) || 0) - (Number(b.distance) || 0));
+    } else if (sortBy === "rating") {
+      result.sort((a, b) => (Number(b.rating) || 0) - (Number(a.rating) || 0));
+    } else if (sortBy === "name") {
+      result.sort((a, b) => a.name.localeCompare(b.name));
+    } else if (sortBy === "price") {
+      result.sort((a, b) => (Number(a.price) || 0) - (Number(b.price) || 0));
+    }
     return result;
-  }, [allPharmacies, selectedRating, sortBy, searchQuery, openNowOnly, inStockOnly, distance, priceMax]);
+  }, [allPharmacies, selectedRating, sortBy, searchQuery, openNowOnly, inStockOnly]);
 
   const resetFilters = () => {
     setSelectedRating(null);
-    setSortBy("rating");
+    setSortBy("distance");
     setSearchQuery("");
     setOpenNowOnly(false);
     setInStockOnly(false);
-    setDistance(5);
+    setDistance(50);
     setPriceMax(1000);
     router.push("/pharmacies", { scroll: false });
   };
@@ -324,19 +334,25 @@ function DiscoveryContent() {
               <div className="flex justify-between items-center mb-3">
                 <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Distance (km)</h3>
               </div>
+              {!userCoords && (
+                <p className="text-[9px] text-slate-400 font-semibold mb-2">
+                  Enable location for distance filtering
+                </p>
+              )}
               <input 
                 type="range" 
-                min="0.5" 
-                max="5" 
-                step="0.1"
+                min="1" 
+                max="50" 
+                step="1"
                 value={distance}
+                disabled={!userCoords}
                 onChange={(e) => setDistance(parseFloat(e.target.value))}
-                className="w-full h-1.5 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-[#00cba9]"
+                className="w-full h-1.5 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-[#00cba9] disabled:opacity-40 disabled:cursor-not-allowed"
               />
               <div className="flex justify-between mt-2.5 text-[9px] font-black text-[#00cba9] uppercase tracking-wide">
-                <span>0 km</span>
-                <span className="bg-[#00cba9]/10 px-2.5 py-0.5 rounded-full text-[10px] font-black">{distance} km</span>
-                <span>5 km</span>
+                <span>1 km</span>
+                <span className="bg-[#00cba9]/10 px-2.5 py-0.5 rounded-full text-[10px] font-black">{userCoords ? `${distance} km` : 'Any'}</span>
+                <span>50 km</span>
               </div>
             </div>
 
