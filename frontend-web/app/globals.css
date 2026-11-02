@@ -49,3 +49,31 @@ body {
 ::-webkit-scrollbar-thumb:hover {
   background: #24D2A6;
 }
+
+
+/* ── Print Media Optimization ──────────────────────────────────────────────── */
+@media print {
+  @page {
+    margin: 8mm;
+    size: auto;
+  }
+
+  header,
+  footer,
+  nav,
+  aside,
+  button,
+  .no-print,
+  #ai-chat-widget {
+    display: none !important;
+  }
+
+  html,
+  body {
+    background: #ffffff !important;
+    color: #000000 !important;
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+  }
+}

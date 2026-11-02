@@ -418,6 +418,10 @@ export class PharmaciesService {
       image_url: input.image_url || null,
       type: input.type || 'general',
       is_pinned: input.is_pinned || false,
+      starts_at: input.starts_at ? new Date(input.starts_at) : null,
+      expires_at: input.expires_at ? new Date(input.expires_at) : null,
+      deleted_by_staff: false,
+      deleted_by_admin: false,
       created_at: new Date(),
       updated_at: new Date()
     };
@@ -476,6 +480,8 @@ export class PharmaciesService {
     if (input.image_url !== undefined) ann.image_url = input.image_url;
     if (input.type !== undefined) ann.type = input.type;
     if (input.is_pinned !== undefined) ann.is_pinned = input.is_pinned;
+    if (input.starts_at !== undefined) (ann as any).starts_at = input.starts_at ? new Date(input.starts_at) : null;
+    if (input.expires_at !== undefined) (ann as any).expires_at = input.expires_at ? new Date(input.expires_at) : null;
     ann.updated_at = new Date();
 
     await pharmacy.save();
@@ -484,16 +490,29 @@ export class PharmaciesService {
 
   async deleteAnnouncement(userId: string, pharmacyId: string, announcementId: string) {
     const pharmacy = await PharmacyModel.findById(pharmacyId);
-    if (!pharmacy) {
-      throw Object.assign(new Error('Pharmacy not found'), { statusCode: 404 });
-    }
-    if (pharmacy.owner_id.toString() !== userId) {
+    if (!pharmacy) throw Object.assign(new Error('Pharmacy not found'), { statusCode: 404 });
+    if (pharmacy.owner_id.toString() !== userId)
       throw Object.assign(new Error('Not the pharmacy owner'), { statusCode: 403 });
-    }
 
-    if (!pharmacy.announcements) return;
-    pharmacy.announcements = pharmacy.announcements.filter((a: any) => a._id.toString() !== announcementId);
+    const ann = pharmacy.announcements?.find((a: any) => a._id.toString() === announcementId);
+    if (!ann) throw Object.assign(new Error('Announcement not found'), { statusCode: 404 });
+
+    (ann as any).deleted_by_staff = true;
+    (ann as any).updated_at = new Date();
     await pharmacy.save();
+  }
+
+  async deleteAnnouncementAdmin(adminId: string, pharmacyId: string, announcementId: string) {
+    const pharmacy = await PharmacyModel.findById(pharmacyId);
+    if (!pharmacy) throw Object.assign(new Error('Pharmacy not found'), { statusCode: 404 });
+
+    const ann = pharmacy.announcements?.find((a: any) => a._id.toString() === announcementId);
+    if (!ann) throw Object.assign(new Error('Announcement not found'), { statusCode: 404 });
+
+    (ann as any).deleted_by_admin = true;
+    (ann as any).updated_at = new Date();
+    await pharmacy.save();
+    logger.info(`Admin ${adminId} soft-deleted announcement ${announcementId} from pharmacy ${pharmacyId}`);
   }
 
   async getInventory(pharmacyId: string, params: any = {}) {

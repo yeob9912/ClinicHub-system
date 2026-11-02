@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState, useEffect, useCallback, Suspense } from "react";
+import { apiRequest } from "@/lib/api";
 import { useSearchParams } from "next/navigation";
 import { 
   MapPin, 
@@ -21,7 +22,8 @@ import {
   ToggleRight,
   Loader2,
   Trash2,
-  Pill
+  Pill,
+  Megaphone
 } from "lucide-react";
 import Image from "next/image";
 import { AnimatePresence, motion } from "framer-motion";
@@ -141,7 +143,26 @@ function PharmacyManagementPage() {
   const [selectedPartner, setSelectedPartner] = useState<Pharmacy | null>(null);
   const [pharmacyMedicines, setPharmacyMedicines] = useState<any[]>([]);
   const [medicinesLoading, setMedicinesLoading] = useState(false);
-  
+  const [adminDeleteAnnId, setAdminDeleteAnnId] = useState<string | null>(null);
+
+  const handleAdminDeleteAnnouncement = async (pharmacyId: string, annId: string) => {
+    try {
+      await apiRequest<any>(`/api/v1/admin/pharmacies/${pharmacyId}/announcements/${annId}`, {
+        method: 'DELETE',
+        auth: true,
+      });
+      setPharmacies(prev => prev.map((p: any) => p._id === pharmacyId ? {
+        ...p,
+        announcements: (p.announcements || []).map((a: any) =>
+          a._id === annId ? { ...a, deleted_by_admin: true } : a
+        )
+      } : p));
+      setAdminDeleteAnnId(null);
+    } catch (err: any) {
+      console.error('Failed to delete announcement from admin view', err);
+    }
+  };
+
   // Register Form
   const [newPharmacyName, setNewPharmacyName] = useState("");
   const [newPharmacyCity, setNewPharmacyCity] = useState("");
@@ -1089,6 +1110,60 @@ function PharmacyManagementPage() {
                   )}
                 </div>
               </div>
+
+                {/* Announcements History */}
+                {(() => {
+                  const rawPh = pharmacies.find((p: any) => p._id === selectedPartner.id);
+                  const anns = (rawPh?.announcements || []).filter((a: any) => !a.deleted_by_admin);
+                  if (anns.length === 0) return null;
+                  const now = new Date();
+                  return (
+                    <div className="space-y-3">
+                      <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
+                        <Megaphone size={12} className="text-[#24D2A6]" /> Announcements ({anns.length})
+                      </h4>
+                      <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+                        {anns.map((ann: any) => {
+                          const isExpired = ann.expires_at && new Date(ann.expires_at) <= now;
+                          const isScheduled = ann.starts_at && new Date(ann.starts_at) > now;
+                          return (
+                            <div key={ann._id} className={`rounded-xl border p-3 ${isExpired ? 'bg-slate-50 border-slate-200 opacity-75' : 'bg-white border-slate-100'}`}>
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-1.5 flex-wrap mb-1">
+                                    <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-slate-100 text-slate-600">{ann.type?.replace('_', ' ')}</span>
+                                    {isExpired && <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-rose-50 text-rose-500 border border-rose-100">Expired</span>}
+                                    {isScheduled && <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-blue-50 text-blue-500 border border-blue-100">Scheduled</span>}
+                                    {ann.is_pinned && <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-amber-50 text-amber-600 border border-amber-100">Pinned</span>}
+                                  </div>
+                                  <p className="font-bold text-slate-800 text-xs truncate">{ann.title}</p>
+                                  {ann.content && <p className="text-slate-500 mt-0.5 text-[10px] line-clamp-2">{ann.content}</p>}
+                                  {ann.expires_at && (
+                                    <p className="text-[10px] text-slate-400 mt-1">
+                                      Expires: {new Date(ann.expires_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+                                    </p>
+                                  )}
+                                </div>
+                                <div className="shrink-0">
+                                  {adminDeleteAnnId === ann._id ? (
+                                    <div className="flex gap-1">
+                                      <button type="button" onClick={() => handleAdminDeleteAnnouncement(rawPh._id, ann._id)} className="text-[10px] px-2 py-1 bg-rose-600 text-white rounded-lg font-bold hover:bg-rose-700 transition-colors cursor-pointer">Yes</button>
+                                      <button type="button" onClick={() => setAdminDeleteAnnId(null)} className="text-[10px] px-2 py-1 bg-slate-100 text-slate-600 rounded-lg font-bold hover:bg-slate-200 transition-colors cursor-pointer">No</button>
+                                    </div>
+                                  ) : (
+                                    <button type="button" onClick={() => setAdminDeleteAnnId(ann._id)} className="text-[10px] px-2 py-1 text-rose-500 hover:bg-rose-50 rounded-lg font-bold transition-colors flex items-center gap-1 cursor-pointer">
+                                      <Trash2 size={10} /> Remove
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })()}
 
               {/* Footer Controls (fixed) */}
               <div className="pt-4 border-t border-slate-100 flex justify-end gap-2 shrink-0">

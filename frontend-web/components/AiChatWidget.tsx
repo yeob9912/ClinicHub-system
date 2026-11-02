@@ -649,9 +649,17 @@ export default function AiChatWidget() {
                         </button>
 
                         {sessions.map((session) => (
-                          <button
+                          <div
                             key={session.id}
+                            role="button"
+                            tabIndex={0}
                             onClick={() => loadSession(session)}
+                            onKeyDown={(e) => {
+                              if (e.target === e.currentTarget && (e.key === "Enter" || e.key === " ")) {
+                                e.preventDefault();
+                                loadSession(session);
+                              }
+                            }}
                             className={`group flex items-start gap-2.5 px-3.5 py-2.5 rounded-xl w-full text-left transition-all cursor-pointer active:scale-[0.98] ${
                               currentSessionId === session.id ? "ring-1 ring-indigo-500/60" : ""
                             }`}
@@ -691,13 +699,14 @@ export default function AiChatWidget() {
                               </p>
                             </div>
                             <button
+                              type="button"
                               onClick={(e) => deleteSession(session.id, e)}
                               className="opacity-0 group-hover:opacity-100 p-1 rounded-lg text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition-all shrink-0 cursor-pointer"
                               aria-label="Delete session"
                             >
                               <Trash2 size={12} />
                             </button>
-                          </button>
+                          </div>
                         ))}
                       </>
                     )}

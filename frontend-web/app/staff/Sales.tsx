@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
+import { printReceipt } from "@/lib/printReceipt";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   DollarSign, ShoppingBag, TrendingUp, Search,
@@ -387,7 +388,7 @@ export default function SalesPage({ pharmacyId, showToast, pharmacyName }: Sales
                       <Download className="h-3.5 w-3.5" /> Download
                     </button>
                     <button
-                      onClick={() => window.print()}
+                      onClick={() => printReceipt(selectedReceipt, displayPharmacyName)}
                       className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 transition-colors"
                     >
                       <Printer className="h-3.5 w-3.5" /> Print

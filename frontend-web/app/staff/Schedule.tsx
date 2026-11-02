@@ -57,8 +57,13 @@ export default function SchedulePage({ pharmacyId, pharmacyName, showToast }: Sc
     content: "",
     type: "general" as "holiday" | "service_interruption" | "emergency" | "maintenance" | "event" | "achievement" | "general",
     image_url: "",
-    is_pinned: false
+    is_pinned: false,
+    starts_at: "",
+    expires_at: ""
   });
+
+  // b) confirmDeleteId state replaces window.confirm
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -124,7 +129,11 @@ export default function SchedulePage({ pharmacyId, pharmacyName, showToast }: Sc
       const res = await apiRequest<any>(`/api/v1/pharmacies/${pharmacyId}/announcements`, {
         method: "POST",
         auth: true,
-        body: JSON.stringify(newAnnouncement)
+        body: JSON.stringify({
+          ...newAnnouncement,
+          starts_at: newAnnouncement.starts_at || null,
+          expires_at: newAnnouncement.expires_at || null,
+        })
       });
       
       const published = res.data ?? res;
@@ -142,7 +151,9 @@ export default function SchedulePage({ pharmacyId, pharmacyName, showToast }: Sc
         content: "",
         type: "general",
         image_url: "",
-        is_pinned: false
+        is_pinned: false,
+        starts_at: "",
+        expires_at: ""
       });
       if (fileInputRef.current) fileInputRef.current.value = "";
       showToast("Announcement published successfully!", "success");
@@ -153,18 +164,17 @@ export default function SchedulePage({ pharmacyId, pharmacyName, showToast }: Sc
     }
   };
 
-  // Delete Announcement
-  const handleDeleteAnnouncement = async (annId: string) => {
+  // Delete Announcement (soft-delete: sets deleted_by_staff=true)
+  const handleConfirmDelete = async (annId: string) => {
     if (!pharmacyId) return;
-    if (!window.confirm("Are you sure you want to delete this announcement?")) return;
-
     try {
       await apiRequest(`/api/v1/pharmacies/${pharmacyId}/announcements/${annId}`, {
         method: "DELETE",
         auth: true
       });
       setAnnouncements(prev => prev.filter(a => a._id !== annId));
-      showToast("Announcement deleted successfully.", "info");
+      setConfirmDeleteId(null);
+      showToast("Announcement removed from public view.", "info");
     } catch {
       showToast("Failed to delete announcement.", "error");
     }
@@ -563,6 +573,32 @@ export default function SchedulePage({ pharmacyId, pharmacyName, showToast }: Sc
                   </button>
                 </div>
 
+                {/* Display Period */}
+                <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 space-y-3">
+                  <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wide">Display Period (Optional)</span>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-500 mb-1">Start Date</label>
+                      <input
+                        type="datetime-local"
+                        value={newAnnouncement.starts_at}
+                        onChange={(e) => setNewAnnouncement(prev => ({ ...prev, starts_at: e.target.value }))}
+                        className="w-full px-3 py-2 border rounded-xl text-xs bg-white focus:outline-none focus:border-[#0F766E] text-slate-800 font-semibold"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-500 mb-1">Expiry Date</label>
+                      <input
+                        type="datetime-local"
+                        value={newAnnouncement.expires_at}
+                        onChange={(e) => setNewAnnouncement(prev => ({ ...prev, expires_at: e.target.value }))}
+                        className="w-full px-3 py-2 border rounded-xl text-xs bg-white focus:outline-none focus:border-[#0F766E] text-slate-800 font-semibold"
+                      />
+                    </div>
+                  </div>
+                  <p className="text-[10px] text-slate-400">If no expiry is set, the announcement stays visible until manually removed from the user page.</p>
+                </div>
+
                 <button 
                   type="submit" 
                   disabled={isPublishing}
@@ -583,18 +619,22 @@ export default function SchedulePage({ pharmacyId, pharmacyName, showToast }: Sc
               <span className="block text-[11px] font-bold uppercase tracking-wider text-slate-400 pl-2">Active Notices & Announcements ({announcements.length})</span>
               
               <div className="space-y-4 max-h-[580px] overflow-y-auto pr-1">
-                {announcements.length === 0 ? (
+                {announcements.filter((a: any) => !a.deleted_by_staff).length === 0 ? (
                   <div className="bg-white p-8 rounded-2xl border border-slate-200/60 text-center space-y-2">
                     <HelpCircle className="h-10 w-10 text-slate-300 mx-auto" />
                     <p className="text-xs font-semibold text-slate-400 leading-relaxed">
-                      No active announcements published yet.<br />Use the form to post holiday closures, emergency notices, or promotions.
+                      No announcements yet.<br />Use the form to post holiday closures, emergency notices, or promotions.
                     </p>
                   </div>
-                ) : announcements.map((ann) => (
+                ) : announcements.filter((a: any) => !a.deleted_by_staff).map((ann: any) => {
+                  const now = new Date();
+                  const isExpired = ann.expires_at && new Date(ann.expires_at) <= now;
+                  const isScheduled = ann.starts_at && new Date(ann.starts_at) > now;
+                  return (
                   <div 
                     key={ann._id} 
                     className={`bg-white rounded-2xl border p-4 shadow-sm relative overflow-hidden transition-all flex flex-col justify-between ${
-                      ann.is_pinned ? "border-amber-300 shadow-md ring-2 ring-amber-50" : "border-slate-200/60"
+                      isExpired ? "opacity-70 border-slate-200/60" : ann.is_pinned ? "border-amber-300 shadow-md ring-2 ring-amber-50" : "border-slate-200/60"
                     }`}
                   >
                     {/* Pinned flag */}
@@ -605,10 +645,16 @@ export default function SchedulePage({ pharmacyId, pharmacyName, showToast }: Sc
                     )}
 
                     <div className="space-y-3">
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <span className={`text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded border font-mono ${getAnnouncementBadgeStyles(ann.type)}`}>
                           {ann.type.replace("_", " ")}
                         </span>
+                        {isExpired && (
+                          <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-rose-50 text-rose-500 border border-rose-100">Expired</span>
+                        )}
+                        {isScheduled && (
+                          <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-blue-50 text-blue-500 border border-blue-100">Scheduled</span>
+                        )}
                         <span className="text-[10px] text-slate-400 font-semibold">
                           {new Date(ann.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                         </span>
@@ -619,6 +665,12 @@ export default function SchedulePage({ pharmacyId, pharmacyName, showToast }: Sc
                         <p className="text-xs text-slate-600 font-medium leading-relaxed mt-2.5 whitespace-pre-line">{ann.content}</p>
                       </div>
 
+                      {ann.expires_at && (
+                        <p className="text-[10px] text-slate-400">
+                          Expires: {new Date(ann.expires_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+                        </p>
+                      )}
+
                       {ann.image_url && (
                         <div className="w-full h-32 rounded-xl overflow-hidden border border-slate-100">
                           <img src={ann.image_url} alt="Notice Graphic" className="w-full h-full object-cover" />
@@ -627,16 +679,33 @@ export default function SchedulePage({ pharmacyId, pharmacyName, showToast }: Sc
                     </div>
 
                     <div className="flex justify-end pt-3 mt-3 border-t border-slate-100/60">
-                      <button
-                        type="button"
-                        onClick={() => handleDeleteAnnouncement(ann._id)}
-                        className="px-2.5 py-1 text-rose-600 hover:bg-rose-50 rounded-lg text-[10px] font-bold transition-colors flex items-center gap-1"
-                      >
-                        <Trash2 size={12} /> Delete Notice
-                      </button>
+                      {confirmDeleteId === ann._id ? (
+                        <div className="flex gap-2 items-center">
+                          <span className="text-[10px] text-slate-500 font-semibold">Remove from public view?</span>
+                          <button
+                            type="button"
+                            onClick={() => handleConfirmDelete(ann._id)}
+                            className="px-2.5 py-1 bg-rose-600 text-white rounded-lg text-[10px] font-bold hover:bg-rose-700 transition-colors"
+                          >Yes</button>
+                          <button
+                            type="button"
+                            onClick={() => setConfirmDeleteId(null)}
+                            className="px-2.5 py-1 bg-slate-100 text-slate-600 rounded-lg text-[10px] font-bold hover:bg-slate-200 transition-colors"
+                          >No</button>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => setConfirmDeleteId(ann._id)}
+                          className="px-2.5 py-1 text-rose-600 hover:bg-rose-50 rounded-lg text-[10px] font-bold transition-colors flex items-center gap-1"
+                        >
+                          <Trash2 size={12} /> Delete Notice
+                        </button>
+                      )}
                     </div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
 

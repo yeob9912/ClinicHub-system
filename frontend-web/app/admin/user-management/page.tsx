@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { ChevronDown, SlidersHorizontal, UserPlus, Search, Edit, Trash2, Shield, UserX, UserCheck, Eye, X, Loader2 } from "lucide-react";
+import { ChevronDown, SlidersHorizontal, UserPlus, Search, Edit, Trash2, Shield, UserX, UserCheck, Eye, X, Loader2, AlertTriangle } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 import { apiRequest } from "@/lib/api";
 
@@ -30,6 +30,11 @@ export default function UserManagementHub() {
   const [selectedRoleFilter, setSelectedRoleFilter] = useState("All");
   const [selectedStatusFilter, setSelectedStatusFilter] = useState("All");
   const [selectedRestrictionFilter, setSelectedRestrictionFilter] = useState("All");
+
+  // Delete confirmation overlay state
+  const [userToDelete, setUserToDelete] = useState<any | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
@@ -84,22 +89,32 @@ export default function UserManagementHub() {
     setIsFormOpen(true);
   };
 
-  const handleDeleteUser = async (e: React.MouseEvent, id: string) => {
+  const handleOpenDeleteModal = (e: React.MouseEvent, user: any) => {
     e.stopPropagation(); 
-    if (confirm("Are you sure you want to deactivate this user?")) {
-      try {
-        await apiRequest<any>(`/api/v1/admin/users/${id}`, {
-          method: "PATCH",
-          auth: true,
-          body: JSON.stringify({ is_active: false })
-        });
-        await fetchUsers();
-        if (selectedUserDetails?.id === id) {
-          setSelectedUserDetails(null);
-        }
-      } catch (err: any) {
-        alert(err.message || "Failed to deactivate user");
+    setUserToDelete(user);
+    setDeleteError(null);
+  };
+
+  const handleConfirmDeleteUser = async () => {
+    if (!userToDelete) return;
+    setIsDeleting(true);
+    setDeleteError(null);
+    try {
+      await apiRequest<any>(`/api/v1/admin/users/${userToDelete.id}`, {
+        method: "DELETE",
+        auth: true,
+      });
+      // Remove immediately from local state
+      setUsers(prev => prev.filter(u => u.id !== userToDelete.id));
+      if (selectedUserDetails?.id === userToDelete.id) {
+        setSelectedUserDetails(null);
       }
+      setUserToDelete(null);
+      await fetchUsers();
+    } catch (err: any) {
+      setDeleteError(err.message || "Failed to delete user completely");
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -515,9 +530,9 @@ export default function UserManagementHub() {
                             {/* Delete Action */}
                             <motion.button 
                               whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}
-                              onClick={(e) => handleDeleteUser(e, user.id)}
+                              onClick={(e) => handleOpenDeleteModal(e, user)}
                               className="p-1.5 text-[#ef5350] bg-[#ffebee] border border-[#ffcdd2] rounded-md hover:bg-[#f9d2d6]"
-                              title="Delete Record Block"
+                              title="Delete User Completely"
                             >
                               <Trash2 className="w-3.5 h-3.5 md:w-3 md:h-3" />
                             </motion.button>
@@ -645,6 +660,12 @@ export default function UserManagementHub() {
                   >
                     Toggle Status
                   </button>
+                  <button
+                    onClick={(e) => handleOpenDeleteModal(e, selectedUserDetails)}
+                    className="px-3 py-2 bg-rose-50 text-rose-700 border border-rose-200 font-black rounded-xl text-[11px] uppercase tracking-wider hover:bg-rose-100 transition-colors"
+                  >
+                    Delete User
+                  </button>
                 </div>
                 <button
                   onClick={() => setSelectedUserDetails(null)}
@@ -762,6 +783,121 @@ export default function UserManagementHub() {
                   </button>
                 </div>
               </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* --- OVERLAY: Delete Confirmation Modal --- */}
+      <AnimatePresence>
+        {userToDelete && (
+          <div 
+            className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-[60]"
+            onClick={() => { if (!isDeleting) { setUserToDelete(null); setDeleteError(null); } }}
+          >
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.93, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.93, y: 20 }}
+              transition={{ type: "spring", damping: 25, stiffness: 340 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white w-full max-w-md rounded-2xl md:rounded-3xl shadow-2xl border border-rose-100 overflow-hidden flex flex-col"
+            >
+              {/* Header with Close */}
+              <div className="flex items-center justify-between px-6 pt-5 pb-2">
+                <div className="w-10 h-10 rounded-xl bg-rose-50 border border-rose-100 flex items-center justify-center text-rose-500 shadow-xs">
+                  <Trash2 className="w-5 h-5" />
+                </div>
+                <button
+                  type="button"
+                  disabled={isDeleting}
+                  onClick={() => { setUserToDelete(null); setDeleteError(null); }}
+                  className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors disabled:opacity-50 cursor-pointer"
+                  aria-label="Close dialog"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Body */}
+              <div className="px-6 pb-5 pt-2 flex flex-col">
+                <h3 className="text-base md:text-lg font-black text-slate-900 tracking-tight">
+                  Delete User Completely?
+                </h3>
+                <p className="text-xs text-slate-500 mt-1.5 leading-relaxed">
+                  Are you sure you want to permanently remove this user? This action cannot be reversed and will completely erase their account, records, and access from the system.
+                </p>
+
+                {/* User preview card */}
+                <div className="mt-4 bg-slate-50/80 border border-slate-200/80 rounded-2xl p-3.5 flex items-center gap-3">
+                  <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 text-white font-bold flex items-center justify-center text-sm shrink-0 shadow-sm overflow-hidden">
+                    {userToDelete.avatarUrl ? (
+                      <img src={userToDelete.avatarUrl} alt="" className="w-full h-full object-cover" />
+                    ) : (
+                      userToDelete.name?.charAt(0).toUpperCase() || "U"
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-bold text-slate-800 text-sm truncate">{userToDelete.name}</p>
+                    <p className="text-slate-500 text-xs truncate">{userToDelete.email}</p>
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-slate-200/80 text-slate-700">
+                        {userToDelete.role}
+                      </span>
+                      {userToDelete.phone && (
+                        <span className="text-[10px] text-slate-400 font-mono truncate">
+                          {userToDelete.phone}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Inline Error */}
+                {deleteError && (
+                  <motion.div 
+                    initial={{ opacity: 0, y: -4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="mt-3.5 p-3 rounded-xl bg-rose-50 border border-rose-200/80 text-rose-700 text-xs flex items-start gap-2.5"
+                  >
+                    <AlertTriangle className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />
+                    <div className="flex-1 leading-snug">
+                      <span className="font-bold block mb-0.5">Could not delete user</span>
+                      <span>{deleteError}</span>
+                    </div>
+                  </motion.div>
+                )}
+              </div>
+
+              {/* Actions Footer */}
+              <div className="bg-slate-50 px-6 py-4 border-t border-slate-100 flex items-center justify-end gap-2.5">
+                <button
+                  type="button"
+                  disabled={isDeleting}
+                  onClick={() => { setUserToDelete(null); setDeleteError(null); }}
+                  className="px-4 py-2 rounded-xl border border-slate-200 text-slate-600 hover:text-slate-800 hover:bg-slate-100 font-bold text-xs transition-colors cursor-pointer disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={isDeleting}
+                  onClick={handleConfirmDeleteUser}
+                  className="px-5 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 active:scale-[0.98] text-white font-bold text-xs flex items-center gap-2 shadow-sm transition-all cursor-pointer disabled:opacity-60"
+                >
+                  {isDeleting ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <span>Deleting completely...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>Delete Completely</span>
+                    </>
+                  )}
+                </button>
+              </div>
             </motion.div>
           </div>
         )}

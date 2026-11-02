@@ -535,7 +535,17 @@ export default function PharmacyDetailsPage() {
                 </div>
 
                 {/* Pinned Announcement Banner */}
-                {pharmacy.announcements && pharmacy.announcements.some((a: any) => a.is_pinned) && (
+                {(() => {
+                  const now = new Date();
+                  const activeAnnouncements = (pharmacy.announcements || []).filter((ann: any) => {
+                    if (ann.deleted_by_staff || ann.deleted_by_admin) return false;
+                    if (ann.starts_at && new Date(ann.starts_at) > now) return false;
+                    if (ann.expires_at && new Date(ann.expires_at) <= now) return false;
+                    return true;
+                  });
+                  const pinnedAnn = activeAnnouncements.find((a: any) => a.is_pinned);
+                  if (!pinnedAnn) return null;
+                  return (
                   <div className="bg-amber-50 border-b border-amber-100 px-8 py-4 flex items-center gap-3">
                     <div className="w-8 h-8 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center shrink-0 shadow-sm">
                       <Pin className="fill-current animate-bounce" size={14} />
@@ -543,11 +553,12 @@ export default function PharmacyDetailsPage() {
                     <div className="flex-1 min-w-0">
                       <span className="text-[9px] font-black uppercase text-amber-600 tracking-wider font-sans">PINNED BULLETIN</span>
                       <p className="text-xs font-black text-amber-900 truncate">
-                        {pharmacy.announcements.find((a: any) => a.is_pinned).title}: {pharmacy.announcements.find((a: any) => a.is_pinned).content}
+                        {pinnedAnn.title}: {pinnedAnn.content}
                       </p>
                     </div>
                   </div>
-                )}
+                  );
+                })()}
 
                 {/* Quick Info */}
                 <div className="p-8 md:p-12 grid grid-cols-1 md:grid-cols-3 gap-8 border-b border-gray-50">
@@ -599,13 +610,21 @@ export default function PharmacyDetailsPage() {
                           </div>
 
                           {/* Alert message if there are active announcements regarding service interruptions/holidays */}
-                          {pharmacy.announcements && pharmacy.announcements.some(
-                            (a: any) => a.type === "holiday" || a.type === "service_interruption" || a.type === "emergency"
-                          ) && (
+                          {(() => {
+                            const now = new Date();
+                            const hasActiveAlert = (pharmacy.announcements || []).some((a: any) => {
+                              if (a.deleted_by_staff || a.deleted_by_admin) return false;
+                              if (a.starts_at && new Date(a.starts_at) > now) return false;
+                              if (a.expires_at && new Date(a.expires_at) <= now) return false;
+                              return a.type === "holiday" || a.type === "service_interruption" || a.type === "emergency";
+                            });
+                            if (!hasActiveAlert) return null;
+                            return (
                             <div className="p-2.5 bg-rose-50 border border-rose-100 rounded-xl text-[10px] font-black text-rose-600 uppercase tracking-wider animate-pulse">
                               ⚠️ Active Schedule Exception Notice: See bulletin board below
                             </div>
-                          )}
+                            );
+                          })()}
 
                           {/* Full Weekly Hours Detail List */}
                           <div className="pt-2 border-t border-slate-200/50 space-y-1.5 text-xs">
@@ -716,13 +735,22 @@ export default function PharmacyDetailsPage() {
                 </div>
 
                 {/* Announcements & Notices Board */}
-                {pharmacy.announcements && pharmacy.announcements.length > 0 && (
+                {(() => {
+                  const now = new Date();
+                  const activeAnnouncements = (pharmacy.announcements || []).filter((ann: any) => {
+                    if (ann.deleted_by_staff || ann.deleted_by_admin) return false;
+                    if (ann.starts_at && new Date(ann.starts_at) > now) return false;
+                    if (ann.expires_at && new Date(ann.expires_at) <= now) return false;
+                    return true;
+                  });
+                  if (activeAnnouncements.length === 0) return null;
+                  return (
                   <div className="p-8 md:p-12 border-b border-gray-50 bg-slate-50/40">
                     <h2 className="text-2xl font-black text-slate-900 mb-6 flex items-center gap-3">
                       <Volume2 size={24} className="text-[#24D2A6]" /> Announcements & Notices
                     </h2>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {pharmacy.announcements.map((ann: any) => {
+                      {activeAnnouncements.map((ann: any) => {
                         const isPinned = ann.is_pinned;
                         return (
                           <div 
@@ -768,7 +796,8 @@ export default function PharmacyDetailsPage() {
                       })}
                     </div>
                   </div>
-                )}
+                  );
+                })()}
 
                 {/* Available Medicines */}
                 <div className="p-8 md:p-12">

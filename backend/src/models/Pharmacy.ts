@@ -9,6 +9,10 @@ export interface IAnnouncement {
   image_url?: string;
   type: 'holiday' | 'service_interruption' | 'emergency' | 'maintenance' | 'event' | 'achievement' | 'general';
   is_pinned?: boolean;
+  starts_at?: Date | null;
+  expires_at?: Date | null;
+  deleted_by_staff?: boolean;
+  deleted_by_admin?: boolean;
   created_at?: Date;
   updated_at?: Date;
 }
@@ -100,6 +104,10 @@ const pharmacySchema = new Schema<IPharmacy>(
           image_url: { type: String, default: null },
           type: { type: String, enum: ['holiday', 'service_interruption', 'emergency', 'maintenance', 'event', 'achievement', 'general'], default: 'general' },
           is_pinned: { type: Boolean, default: false },
+          starts_at: { type: Date, default: null },
+          expires_at: { type: Date, default: null },
+          deleted_by_staff: { type: Boolean, default: false },
+          deleted_by_admin: { type: Boolean, default: false },
           created_at: { type: Date, default: Date.now },
           updated_at: { type: Date, default: Date.now }
         }

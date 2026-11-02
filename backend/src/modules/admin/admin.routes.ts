@@ -3,6 +3,7 @@ import { adminController } from './admin.controller';
 import { complaintsController } from '../complaints/complaints.controller';
 import { validate } from '../../middleware/validate';
 import {
+  UserIdSchema,
   ListUsersSchema,
   UpdateUserSchema,
   ListPharmaciesAdminSchema,
@@ -28,6 +29,8 @@ const router = Router();
 router.get('/users', validate(ListUsersSchema), adminController.listUsers);
 // PATCH /admin/users/:id
 router.patch('/users/:id', validate(UpdateUserSchema), adminController.updateUser);
+// DELETE /admin/users/:id
+router.delete('/users/:id', validate(UserIdSchema), adminController.deleteUser);
 
 // ─── Pharmacies ───────────────────────────────────────────────────────────────
 // GET /admin/pharmacies
@@ -42,6 +45,8 @@ router.patch('/pharmacies/:id/suspend', validate(SuspendPharmacySchema), adminCo
 router.get('/pharmacies/:id/inventory', adminController.getPharmacyInventory);
 // POST /admin/pharmacies/:id/query — send question back to applicant without changing status
 router.post('/pharmacies/:id/query', adminController.sendOwnerQuery);
+// DELETE /admin/pharmacies/:id/announcements/:announcementId — soft-delete for admin view only
+router.delete('/pharmacies/:id/announcements/:announcementId', adminController.deleteAnnouncementAdmin);
 
 // ─── Medicines ────────────────────────────────────────────────────────────────
 // GET /admin/medicines

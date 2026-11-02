@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useCallback } from "react";
+import { printReceipt } from "@/lib/printReceipt";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
   ShoppingCart, Clock, CheckCircle2, XCircle, FileText, 
   ChevronRight, MessageSquare, CornerDownRight, History, 
   Stethoscope, Calendar, Video, MapPin, Send, Banknote,
   ImageIcon, Truck, Eye, Receipt, RefreshCw, AlertTriangle,
-  ExternalLink, Download
+  ExternalLink, Download, Printer
 } from "lucide-react";
 import { apiFetch, normaliseOrder } from "./utils";
 
@@ -522,7 +523,13 @@ export default function OrdersPage({ pharmacyId, showToast, highlightOrderId, on
                       onClick={() => downloadReceiptText(selectedReceipt)}
                       className="flex-1 py-2 bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs rounded-xl transition-all flex items-center justify-center gap-1.5"
                     >
-                      <Download className="w-3.5 h-3.5" /> Download Receipt
+                      <Download className="w-3.5 h-3.5" /> Download
+                    </button>
+                    <button
+                      onClick={() => printReceipt(selectedReceipt)}
+                      className="flex-1 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition-all flex items-center justify-center gap-1.5"
+                    >
+                      <Printer className="w-3.5 h-3.5" /> Print
                     </button>
                   </div>
                 </motion.div>

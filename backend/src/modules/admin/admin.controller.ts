@@ -1,8 +1,10 @@
 import { Request, Response, NextFunction } from 'express';
 import { AdminService } from './admin.service';
+import { PharmaciesService } from '../pharmacies/pharmacies.service';
 import { sendSuccess, sendCreated, sendError, sendUnauthorized } from '../../utils/response';
 
 const adminService = new AdminService();
+const pharmaciesService = new PharmaciesService();
 
 export const adminController = {
   // ─── Users ─────────────────────────────────────────────────────────────────
@@ -25,6 +27,19 @@ export const adminController = {
       const e = err as Error & { statusCode?: number };
       if (e.statusCode === 400) sendError(res, 400, 'BAD_REQUEST', e.message);
       else if (e.statusCode === 404) sendError(res, 404, 'NOT FOUND', e.message);
+      else next(err);
+    }
+  },
+
+  async deleteUser(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      if (!req.userId) { sendUnauthorized(res); return; }
+      const result = await adminService.deleteUser(req.userId, req.params.id);
+      sendSuccess(res, result, 'User deleted completely');
+    } catch (err: unknown) {
+      const e = err as Error & { statusCode?: number };
+      if (e.statusCode === 400) sendError(res, 400, 'BAD_REQUEST', e.message);
+      else if (e.statusCode === 404) sendError(res, 404, 'NOT_FOUND', e.message);
       else next(err);
     }
   },
@@ -190,6 +205,18 @@ export const adminController = {
       res.json({ success: true, data: history, message: 'Broadcast history retrieved' });
     } catch (err) {
       next(err);
+    }
+  },
+
+  async deleteAnnouncementAdmin(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      if (!req.userId) { sendUnauthorized(res); return; }
+      await pharmaciesService.deleteAnnouncementAdmin(req.userId, req.params.id, req.params.announcementId);
+      sendSuccess(res, null, 'Announcement removed from admin history');
+    } catch (err: unknown) {
+      const e = err as Error & { statusCode?: number };
+      if (e.statusCode === 404) sendError(res, 404, 'NOT_FOUND', e.message);
+      else next(err);
     }
   },
 };

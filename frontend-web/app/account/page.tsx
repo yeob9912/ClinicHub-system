@@ -32,8 +32,11 @@ import {
   ImageIcon,
   Truck,
   Copy,
+  Printer,
+  Download,
 } from "lucide-react";
 import Link from "next/link";
+import { printReceipt } from "@/lib/printReceipt";
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001/api/v1";
 
@@ -900,7 +903,13 @@ function OrderCard({ order, index, onRefresh }: { order: Order; index: number; o
                     onClick={() => downloadReceiptText(receiptData)}
                     className="flex-1 py-2.5 bg-[#24D2A6] hover:bg-emerald-500 text-white font-black text-xs rounded-2xl flex items-center justify-center gap-2 transition-colors"
                   >
-                    <ImageIcon size={13} /> Download Receipt
+                    <Download size={13} /> Download
+                  </button>
+                  <button
+                    onClick={() => printReceipt(receiptData, receiptData.pharmacy_id?.name || order.pharmacy_id?.name || "pharmaLocator Pharmacy")}
+                    className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-2xl flex items-center justify-center gap-2 transition-colors"
+                  >
+                    <Printer size={13} /> Print
                   </button>
                   <button
                     onClick={() => setShowReceiptModal(false)}

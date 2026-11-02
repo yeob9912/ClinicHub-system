@@ -12,6 +12,10 @@ export const ListUsersSchema = z.object({
   }),
 });
 
+export const UserIdSchema = z.object({
+  params: z.object({ id: z.string().regex(/^[0-9a-fA-F]{24}$/, 'User ID must be a valid MongoDB ObjectId') }),
+});
+
 export const UpdateUserSchema = z.object({
   params: z.object({ id: z.string().regex(/^[0-9a-fA-F]{24}$/, 'User ID must be a valid MongoDB ObjectId') }),
   body: z

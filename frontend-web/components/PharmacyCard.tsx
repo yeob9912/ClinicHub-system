@@ -176,23 +176,34 @@ export default function PharmacyCard({ pharmacy, viewType = "list", highlightedM
             </div>
 
             {/* Latest Announcement */}
-            {pharmacy.announcements && pharmacy.announcements.length > 0 && (
-              <div className="mb-4 px-4 py-3 bg-amber-50/60 border border-amber-100 rounded-2xl flex items-start gap-2.5 text-left text-xs">
-                <Megaphone size={14} className="text-amber-600 shrink-0 mt-0.5 animate-pulse" />
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2 mb-0.5">
-                    <span className="font-black text-amber-800 text-[10px] uppercase tracking-wider">Notice Board</span>
-                    <span className="text-[9px] text-amber-500 font-semibold">
-                      {new Date(pharmacy.announcements[0].created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
-                    </span>
+            {(() => {
+              const now = new Date();
+              const activeAnns = (pharmacy.announcements || []).filter((ann: any) => {
+                if (ann.deleted_by_staff || ann.deleted_by_admin) return false;
+                if (ann.starts_at && new Date(ann.starts_at) > now) return false;
+                if (ann.expires_at && new Date(ann.expires_at) <= now) return false;
+                return true;
+              });
+              if (activeAnns.length === 0) return null;
+              const latest = activeAnns[0];
+              return (
+                <div className="mb-4 px-4 py-3 bg-amber-50/60 border border-amber-100 rounded-2xl flex items-start gap-2.5 text-left text-xs">
+                  <Megaphone size={14} className="text-amber-600 shrink-0 mt-0.5 animate-pulse" />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 mb-0.5">
+                      <span className="font-black text-amber-800 text-[10px] uppercase tracking-wider">Notice Board</span>
+                      <span className="text-[9px] text-amber-500 font-semibold">
+                        {new Date(latest.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                      </span>
+                    </div>
+                    <p className="font-bold text-slate-800 truncate">{latest.title}</p>
+                    <p className="text-[11px] text-slate-500 line-clamp-1 leading-normal">
+                      {latest.content}
+                    </p>
                   </div>
-                  <p className="font-bold text-slate-800 truncate">{pharmacy.announcements[0].title}</p>
-                  <p className="text-[11px] text-slate-500 line-clamp-1 leading-normal">
-                    {pharmacy.announcements[0].content}
-                  </p>
                 </div>
-              </div>
-            )}
+              );
+            })()}
 
             {/* Actions */}
             <div className="flex items-center gap-2.5">
@@ -281,23 +292,34 @@ export default function PharmacyCard({ pharmacy, viewType = "list", highlightedM
           </div>
 
           {/* Latest Announcement */}
-          {pharmacy.announcements && pharmacy.announcements.length > 0 && (
-            <div className="mb-4 px-4 py-3 bg-amber-50/60 border border-amber-100 rounded-2xl flex items-start gap-2.5 text-left text-xs">
-              <Megaphone size={14} className="text-amber-600 shrink-0 mt-0.5 animate-pulse" />
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2 mb-0.5">
-                  <span className="font-black text-amber-800 text-[10px] uppercase tracking-wider">Notice Board</span>
-                  <span className="text-[9px] text-amber-500 font-semibold">
-                    {new Date(pharmacy.announcements[0].created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
-                  </span>
+          {(() => {
+            const now = new Date();
+            const activeAnns = (pharmacy.announcements || []).filter((ann: any) => {
+              if (ann.deleted_by_staff || ann.deleted_by_admin) return false;
+              if (ann.starts_at && new Date(ann.starts_at) > now) return false;
+              if (ann.expires_at && new Date(ann.expires_at) <= now) return false;
+              return true;
+            });
+            if (activeAnns.length === 0) return null;
+            const latest = activeAnns[0];
+            return (
+              <div className="mb-4 px-4 py-3 bg-amber-50/60 border border-amber-100 rounded-2xl flex items-start gap-2.5 text-left text-xs">
+                <Megaphone size={14} className="text-amber-600 shrink-0 mt-0.5 animate-pulse" />
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2 mb-0.5">
+                    <span className="font-black text-amber-800 text-[10px] uppercase tracking-wider">Notice Board</span>
+                    <span className="text-[9px] text-amber-500 font-semibold">
+                      {new Date(latest.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                    </span>
+                  </div>
+                  <p className="font-bold text-slate-800 truncate">{latest.title}</p>
+                  <p className="text-[11px] text-slate-500 line-clamp-1 leading-normal">
+                    {latest.content}
+                  </p>
                 </div>
-                <p className="font-bold text-slate-800 truncate">{pharmacy.announcements[0].title}</p>
-                <p className="text-[11px] text-slate-500 line-clamp-1 leading-normal">
-                  {pharmacy.announcements[0].content}
-                </p>
               </div>
-            </div>
-          )}
+            );
+          })()}
 
           {/* Actions */}
           <div className="flex items-center gap-2 mt-auto">

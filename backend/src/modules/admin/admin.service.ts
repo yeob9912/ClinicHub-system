@@ -8,6 +8,7 @@ import { NotificationModel } from '../../models/Notification';
 import { InventoryModel } from '../../models/Inventory';
 import { ComplaintModel } from '../../models/Complaint';
 import { OrderModel } from '../../models/Order';
+import { WatchlistModel } from '../../models/Watchlist';
 
 export class AdminService {
   // ─── Users ─────────────────────────────────────────────────────────────────
@@ -71,6 +72,37 @@ export class AdminService {
     }
 
     return user;
+  }
+
+  async deleteUser(adminId: string, userId: string) {
+    if (adminId === userId) {
+      throw Object.assign(
+        new Error('You cannot delete your own admin account'),
+        { statusCode: 400 }
+      );
+    }
+
+    const user = await UserModel.findById(userId);
+    if (!user) {
+      throw Object.assign(new Error('User not found'), { statusCode: 404 });
+    }
+
+    const ownedPharmacy = await PharmacyModel.findOne({ owner_id: userId });
+    if (ownedPharmacy) {
+      throw Object.assign(
+        new Error(`Cannot delete user because they own pharmacy "${ownedPharmacy.name}". Please reassign or remove the pharmacy first.`),
+        { statusCode: 400 }
+      );
+    }
+
+    await Promise.all([
+      NotificationModel.deleteMany({ user_id: userId }),
+      WatchlistModel.deleteMany({ user_id: userId }),
+      UserModel.findByIdAndDelete(userId),
+    ]);
+
+    logger.info(`User ${userId} (${user.email}) completely deleted by admin ${adminId}`);
+    return { id: userId, email: user.email, full_name: user.full_name };
   }
 
   // ─── Pharmacies ────────────────────────────────────────────────────────────
